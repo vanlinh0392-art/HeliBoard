@@ -1,0 +1,2 @@
+Second test release for GitHub update prompt on the debug package.
+Increment version to 3.6.5 so another newer release is available.

@@ -1,0 +1,2 @@
+Ban release thu hai de test nhac cap nhat GitHub cho goi debug.
+Tang version len 3.6.5 de co them mot ban moi hon.
