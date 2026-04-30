@@ -1,0 +1,2 @@
+Test release for GitHub update prompt on the debug package.
+Increment version to 3.6.4 and add releaseDebug build support.

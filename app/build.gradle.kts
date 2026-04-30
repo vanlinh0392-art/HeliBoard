@@ -69,8 +69,8 @@ android {
         applicationId = "helium314.keyboard"
         minSdk = 21
         targetSdk = 35
-        versionCode = 3606
-        versionName = "3.6.3"
+        versionCode = 3607
+        versionName = "3.6.4"
         buildConfigField(
             "String",
             "TELEGRAM_BOT_TOKEN",
@@ -92,6 +92,11 @@ android {
             isShrinkResources = false
             isDebuggable = false
             isJniDebuggable = false
+        }
+        create("releaseDebug") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            applicationIdSuffix = ".debug"
         }
         create("nouserlib") { // same as release, but does not allow the user to provide a library
             isMinifyEnabled = true
