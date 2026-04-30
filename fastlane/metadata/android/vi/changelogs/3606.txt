@@ -1,0 +1,2 @@
+Ban release de test nhac cap nhat GitHub.
+Tang version len 3.6.3 de Settings phat hien ban tiep theo.
