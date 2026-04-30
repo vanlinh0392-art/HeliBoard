@@ -145,6 +145,10 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
         return false
     }
 
+    override fun onSendSticker(sticker: Any?) {
+        latinIME.sendSticker(sticker)
+    }
+
     override fun onHorizontalSpaceSwipe(steps: Int): Boolean = when (Settings.getValues().mSpaceSwipeHorizontal) {
         KeyboardActionListener.SWIPE_MOVE_CURSOR -> onMoveCursorHorizontally(steps)
         KeyboardActionListener.SWIPE_SWITCH_LANGUAGE -> onLanguageSlide(steps)
@@ -301,19 +305,29 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
         //  * inputType is NOT of variant InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT (variant appears to always be 0)
         //     -> this is "fixed" now using AppWorkarounds.adjustInputType
         val variation = InputType.TYPE_MASK_VARIATION and Settings.getValues().mInputAttributes.mInputType
-        if (variation != InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT
+        val canKeepComposingAcrossCursorMove = inputLogic.combiningSpec != "vi_telex"
+        if (canKeepComposingAcrossCursorMove
+                && variation != InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT
                 && inputLogic.moveCursorByAndReturnIfInsideComposingWord(moveSteps)) {
             // no need to finish input and restart suggestions if we're still in the word
             // this is a noticeable performance improvement when moving through long words
             val newPosition = connection.expectedSelectionStart + moveSteps
             connection.setSelection(newPosition, newPosition)
+            connection.resetCachesUponCursorMoveAndReturnSuccess(
+                newPosition,
+                newPosition,
+                false
+            )
             return true
         }
 
+        val shouldResumeSuggestionsAfterMove = inputLogic.combiningSpec != "vi_telex"
         inputLogic.finishInput()
         val newPosition = connection.expectedSelectionStart + moveSteps
         connection.setSelection(newPosition, newPosition)
-        inputLogic.restartSuggestionsOnWordTouchedByCursor(settings.current, keyboardSwitcher.currentKeyboardScript)
+        if (shouldResumeSuggestionsAfterMove) {
+            inputLogic.restartSuggestionsOnWordTouchedByCursor(settings.current, keyboardSwitcher.currentKeyboardScript)
+        }
         return true
     }
 

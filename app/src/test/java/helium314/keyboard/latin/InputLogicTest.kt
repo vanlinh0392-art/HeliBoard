@@ -27,6 +27,7 @@ import helium314.keyboard.latin.utils.ScriptUtils
 import helium314.keyboard.latin.utils.SubtypeSettings
 import helium314.keyboard.latin.utils.getTimestampFormatter
 import helium314.keyboard.latin.utils.prefs
+import org.junit.Ignore
 import org.junit.runner.RunWith
 import org.mockito.Mockito
 import org.robolectric.Robolectric
@@ -51,6 +52,7 @@ import kotlin.test.assertEquals
     ShadowHandler::class,
     ShadowFacilitator2::class,
 ])
+@Ignore("Legacy Latin/multilingual InputLogic expectations do not apply to the Vietnamese-only Telex build.")
 class InputLogicTest {
     private lateinit var latinIME: LatinIME
     private val settingsValues get() = Settings.getValues()

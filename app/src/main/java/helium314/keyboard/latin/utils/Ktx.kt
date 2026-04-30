@@ -1,6 +1,5 @@
 package helium314.keyboard.latin.utils
 
-import android.R
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.ContextWrapper
@@ -132,7 +131,7 @@ fun InputMethodService.updateSoftInputWindowLayoutParameters(inputView: View?) {
         ViewGroup.LayoutParams.WRAP_CONTENT
     else
         ViewGroup.LayoutParams.MATCH_PARENT
-    val inputArea = window.findViewById<View?>(R.id.inputArea)
+    val inputArea = window.findViewById<View?>(android.R.id.inputArea)
     ViewLayoutUtils.updateLayoutHeightOf(inputArea, layoutHeight)
     ViewLayoutUtils.updateLayoutGravityOf(inputArea, Gravity.BOTTOM)
     ViewLayoutUtils.updateLayoutHeightOf(inputView, layoutHeight)

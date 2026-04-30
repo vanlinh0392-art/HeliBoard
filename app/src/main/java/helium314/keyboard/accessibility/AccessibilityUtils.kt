@@ -34,9 +34,10 @@ class AccessibilityUtils private constructor() {
     private var mTypedWord: String? = null
 
     private fun initInternal(context: Context) {
-        mContext = context
-        mAccessibilityManager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        mAudioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val appContext = context.applicationContext
+        mContext = appContext
+        mAccessibilityManager = appContext.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        mAudioManager = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     }
 
     /**
@@ -67,11 +68,13 @@ class AccessibilityUtils private constructor() {
     fun shouldObscureInput(editorInfo: EditorInfo?): Boolean {
         if (editorInfo == null) return false
         // The user can optionally force speaking passwords.
-        if (Settings.Secure.ACCESSIBILITY_SPEAK_PASSWORD != null) {
-            val speakPassword = Settings.Secure.getInt(mContext.contentResolver,
-                    Settings.Secure.ACCESSIBILITY_SPEAK_PASSWORD, 0) != 0
-            if (speakPassword) return false
-        }
+        @Suppress("deprecation")
+        val speakPassword = Settings.Secure.getInt(
+            mContext.contentResolver,
+            Settings.Secure.ACCESSIBILITY_SPEAK_PASSWORD,
+            0,
+        ) != 0
+        if (speakPassword) return false
         // Always speak if the user is listening through headphones.
         val listeningThroughHeadphones = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             @Suppress("deprecation") // no replacement available

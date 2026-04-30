@@ -237,6 +237,7 @@ class DictionaryFacilitatorImpl : DictionaryFacilitator {
         mLatchForWaitingLoadingMainDictionaries = latchForWaitingLoadingMainDictionary
         scope.launch {
             try {
+                android.util.Log.d(TAG, "asyncReloadUninitializedMainDictionaries: starting for $locales")
                 val useEmojiDict = Settings.getValues().mSuggestEmojis
                 val dictGroupsWithNewMainDict = locales.mapNotNull {
                     val dictionaryGroup = findDictionaryGroupWithLocale(dictionaryGroups, it)
@@ -244,17 +245,24 @@ class DictionaryFacilitatorImpl : DictionaryFacilitator {
                         Log.w(TAG, "Expected a dictionary group for $it but none found")
                         return@mapNotNull null // This should never happen
                     }
-                    if (dictionaryGroup.getDict(Dictionary.TYPE_MAIN)?.isInitialized == true) null
-                    else dictionaryGroup to DictionaryFactory.createMainDictionaryCollection(context, it, useEmojiDict)
+                    if (dictionaryGroup.getDict(Dictionary.TYPE_MAIN)?.isInitialized == true) {
+                         android.util.Log.d(TAG, "Main dict for $it already initialized")
+                         null
+                    } else {
+                        android.util.Log.d(TAG, "Creating main dict collection for $it")
+                        dictionaryGroup to DictionaryFactory.createMainDictionaryCollection(context, it, useEmojiDict)
+                    }
                 }
                 synchronized(this) {
                     dictGroupsWithNewMainDict.forEach { (dictGroup, mainDict) ->
+                        android.util.Log.d(TAG, "Setting main dict for ${dictGroup.locale}")
                         dictGroup.setMainDict(mainDict)
                     }
                 }
 
                 listener?.onUpdateMainDictionaryAvailability(hasAtLeastOneInitializedMainDictionary())
                 latchForWaitingLoadingMainDictionary.countDown()
+                android.util.Log.d(TAG, "asyncReloadUninitializedMainDictionaries: finished")
             } catch (e: Throwable) {
                 Log.e(TAG, "could not initialize main dictionaries for $locales", e)
             }

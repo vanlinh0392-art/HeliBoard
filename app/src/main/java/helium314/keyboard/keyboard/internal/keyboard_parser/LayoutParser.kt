@@ -39,6 +39,7 @@ object LayoutParser {
             return mutableListOf(mutableListOf()) // no functional keys
         val layoutName = if (layoutType == LayoutType.MAIN) params.mId.mSubtype.mainLayoutName
             else params.mId.mSubtype.layouts[layoutType] ?: Settings.readDefaultLayoutName(layoutType, context.prefs())
+        Log.d(TAG, "parseLayout: parsing type=$layoutType name=$layoutName for subtype=${params.mId.mSubtype.locale}")
         return layoutCache.getOrPut(layoutType.name + layoutName) {
             createCacheLambda(layoutType, layoutName, context)
         }(params)

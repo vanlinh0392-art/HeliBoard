@@ -84,6 +84,8 @@ class Event private constructor(
 
     val isHandled: Boolean get() = EVENT_TYPE_NOT_HANDLED != eventType
 
+    val isCursorMove: Boolean get() = EVENT_TYPE_CURSOR_MOVE == eventType
+
     // A consumed event should input no text.
     val textToCommit: CharSequence?
         get() {

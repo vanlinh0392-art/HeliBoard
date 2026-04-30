@@ -180,7 +180,13 @@ object SubtypeLocaleUtils {
     }
 
     @JvmStatic
-    fun getCombiningRulesExtraValue(subtype: InputMethodSubtype): String? = subtype.getExtraValueOf(ExtraValue.COMBINING_RULES)
+    fun getCombiningRulesExtraValue(subtype: InputMethodSubtype): String? {
+        val explicitValue = subtype.getExtraValueOf(ExtraValue.COMBINING_RULES)
+        if (explicitValue != null) return explicitValue
+        // Auto-enable Telex for Vietnamese if not explicitly set
+        if (subtype.locale().language == "vi") return "vi_telex"
+        return null
+    }
 
     // Special language code to represent "no language".
     const val NO_LANGUAGE = "zz"

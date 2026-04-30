@@ -75,6 +75,7 @@ fun SettingsNavHost(
                 onClickLanguage = { navController.navigate(SettingsDestination.Languages) },
                 onClickLayouts = { navController.navigate(SettingsDestination.Layouts) },
                 onClickDictionaries = { navController.navigate(SettingsDestination.Dictionaries) },
+                onClickStickers = { navController.navigate(SettingsDestination.Stickers) },
                 onClickBack = ::goBack,
             )
         }
@@ -121,6 +122,19 @@ fun SettingsNavHost(
         composable(SettingsDestination.Layouts) {
             SecondaryLayoutScreen(onClickBack = ::goBack)
         }
+        composable(SettingsDestination.Stickers) {
+             helium314.keyboard.settings.screens.StickerSettingsScreen(
+                onClickBack = ::goBack,
+                onClickPack = { packId -> navController.navigate(SettingsDestination.StickerDetail + packId) }
+             )
+        }
+        composable(SettingsDestination.StickerDetail + "{packId}") {
+            val packId = it.arguments?.getString("packId") ?: return@composable
+            helium314.keyboard.settings.screens.StickerPackDetailScreen(
+                packId = packId,
+                onClickBack = ::goBack
+            )
+        }
         composable(SettingsDestination.Colors + "{theme}") {
             ColorsScreen(isNight = false, theme = it.arguments?.getString("theme"), onClickBack = ::goBack)
         }
@@ -153,6 +167,8 @@ object SettingsDestination {
     const val Subtype = "subtype/"
     const val Layouts = "layouts"
     const val Dictionaries = "dictionaries"
+    const val Stickers = "stickers"
+    const val StickerDetail = "sticker_detail/"
     val navTarget = MutableStateFlow(Settings)
 
     private val navScope = CoroutineScope(Dispatchers.Default)

@@ -205,6 +205,7 @@ data class VariationSelector(
 @SerialName("keyboard_state_selector")
 class KeyboardStateSelector(
     val emojiKeyEnabled: AbstractKeyData? = null,
+    val voiceKeyEnabled: AbstractKeyData? = null,
     val languageKeyEnabled: AbstractKeyData? = null,
     val symbols: AbstractKeyData? = null,
     val moreSymbols: AbstractKeyData? = null,
@@ -214,6 +215,8 @@ class KeyboardStateSelector(
     override fun compute(params: KeyboardParams): KeyData? {
         if (params.mId.mEmojiKeyEnabled)
             emojiKeyEnabled?.compute(params)?.let { return it }
+        if (params.mId.mHasShortcutKey)
+            voiceKeyEnabled?.compute(params)?.let { return it }
         if (params.mId.mLanguageSwitchKeyEnabled)
             languageKeyEnabled?.compute(params)?.let { return it }
         if (params.mId.mElementId == KeyboardId.ELEMENT_SYMBOLS)

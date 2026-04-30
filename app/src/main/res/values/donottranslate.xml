@@ -29,27 +29,11 @@
     <!-- Predefined keyboard layouts for additional subtype -->
     <string-array name="predefined_layouts">
         <item>qwerty</item>
-        <item>qwertz</item>
-        <item>azerty</item>
-        <item>dvorak</item>
-        <item>halmak</item>
-        <item>colemak</item>
-        <item>colemak_dh</item>
-        <item>workman</item>
-        <item>bepo</item>
         <item>pcqwerty</item>
     </string-array>
     <!-- Predefined keyboard layout display names -->
     <string-array name="predefined_layout_display_names">
         <item>QWERTY</item>
-        <item>QWERTZ</item>
-        <item>AZERTY</item>
-        <item>Dvorak</item>
-        <item>Halmak</item>
-        <item>Colemak</item>
-        <item>Colemak Mod-DH</item>
-        <item>Workman</item>
-        <item>Bépo</item>
         <item>PC</item>
     </string-array>
 

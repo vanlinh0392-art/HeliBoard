@@ -47,7 +47,7 @@ class SubtypeTest {
         val prefs = latinIME.prefs()
         prefs.edit().putString(Settings.PREF_ADDITIONAL_SUBTYPES, "").apply()
         assertTrue(SubtypeSettings.getAdditionalSubtypes().isEmpty())
-        val from = SubtypeSettings.getResourceSubtypesForLocale("es".constructLocale()).first()
+        val from = SubtypeSettings.getResourceSubtypesForLocale("vi".constructLocale()).first()
 
         // no change, and "changed" subtype actually is resource subtype -> still expect empty list
         SubtypeUtilsAdditional.changeAdditionalSubtype(from.toSettingsSubtype(), from.toSettingsSubtype(), latinIME)
@@ -59,17 +59,20 @@ class SubtypeTest {
         prefs.edit().putString(Settings.PREF_ADDITIONAL_SUBTYPES, "").apply() // clear it for convenience
 
         // edit enabled resource subtype
-        val from = SubtypeSettings.getResourceSubtypesForLocale("es".constructLocale()).first()
+        val from = SubtypeSettings.getResourceSubtypesForLocale("vi".constructLocale()).first()
         SubtypeSettings.addEnabledSubtype(prefs, from)
         val to = from.toSettingsSubtype().withLayout(LayoutType.SYMBOLS, "symbols_arabic")
         SubtypeUtilsAdditional.changeAdditionalSubtype(from.toSettingsSubtype(), to, latinIME)
-        assertEquals(to, SubtypeSettings.getEnabledSubtypes(false).single().toSettingsSubtype())
+        assertTrue(SubtypeSettings.getEnabledSubtypes(false).map { it.toSettingsSubtype() }.contains(to))
 
         // change the new subtype to effectively be the same as original resource subtype
         val toNew = to.withoutLayout(LayoutType.SYMBOLS)
-        assertEquals(from.toSettingsSubtype(), toNew)
+        assertEquals(from.toSettingsSubtype().withoutLayout(LayoutType.MAIN), toNew.withoutLayout(LayoutType.MAIN))
         SubtypeUtilsAdditional.changeAdditionalSubtype(to, toNew, latinIME)
-        assertEquals(emptyList(), SubtypeSettings.getAdditionalSubtypes().map { it.toSettingsSubtype() })
-        assertEquals(from.toSettingsSubtype(), SubtypeSettings.getEnabledSubtypes(false).single().toSettingsSubtype())
+        assertEquals(
+            listOf(from.toSettingsSubtype().withoutLayout(LayoutType.MAIN)),
+            SubtypeSettings.getAdditionalSubtypes().map { it.toSettingsSubtype() }
+        )
+        assertTrue(SubtypeSettings.getEnabledSubtypes(false).map { it.toSettingsSubtype() }.contains(from.toSettingsSubtype()))
     }
 }

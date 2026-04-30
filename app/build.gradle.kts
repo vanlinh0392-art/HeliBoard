@@ -1,4 +1,53 @@
 import com.android.build.api.variant.ApplicationVariant
+import org.gradle.api.Project
+import java.io.File
+
+fun Project.gitOriginUrl(): String? {
+    fun resolveGitDir(): File? {
+        val gitEntry = rootDir.resolve(".git")
+        if (gitEntry.isDirectory) return gitEntry
+        if (!gitEntry.isFile) return null
+        val gitDirRef = gitEntry.readText().lineSequence()
+            .firstOrNull { it.startsWith("gitdir:") }
+            ?.substringAfter("gitdir:")
+            ?.trim()
+            .orEmpty()
+        if (gitDirRef.isBlank()) return null
+        return rootDir.resolve(gitDirRef).normalize()
+    }
+
+    return runCatching {
+        val configFile = resolveGitDir()?.resolve("config") ?: return@runCatching null
+        var insideOriginBlock = false
+        for (line in configFile.readLines()) {
+            val trimmed = line.trim()
+            if (trimmed.startsWith("[remote ")) {
+                insideOriginBlock = trimmed == "[remote \"origin\"]"
+                continue
+            }
+            if (insideOriginBlock && trimmed.startsWith("url =")) {
+                return@runCatching trimmed.substringAfter("=").trim().takeIf { it.isNotBlank() }
+            }
+        }
+        null
+    }.getOrNull()
+}
+
+fun parseGitHubRepo(url: String?): Pair<String, String> {
+    if (url.isNullOrBlank()) return "" to ""
+    val cleanedUrl = url.removeSuffix(".git")
+    val match = Regex("""github\.com[:/]([^/]+)/([^/]+)$""").find(cleanedUrl) ?: return "" to ""
+    return match.groupValues[1] to match.groupValues[2]
+}
+
+val detectedReleaseRepo = parseGitHubRepo(project.gitOriginUrl())
+val githubReleaseRepoOwner = providers.gradleProperty("githubReleaseRepoOwner").orNull ?: detectedReleaseRepo.first
+val githubReleaseRepoName = providers.gradleProperty("githubReleaseRepoName").orNull ?: detectedReleaseRepo.second
+val githubReleaseRepoUrl = if (githubReleaseRepoOwner.isNotBlank() && githubReleaseRepoName.isNotBlank()) {
+    "https://github.com/$githubReleaseRepoOwner/$githubReleaseRepoName/releases/latest"
+} else {
+    ""
+}
 
 plugins {
     id("com.android.application")
@@ -10,12 +59,26 @@ plugins {
 android {
     compileSdk = 35
 
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
+
     defaultConfig {
         applicationId = "helium314.keyboard"
         minSdk = 21
         targetSdk = 35
-        versionCode = 3603
-        versionName = "3.6"
+        versionCode = 3604
+        versionName = "3.6.1"
+        buildConfigField(
+            "String",
+            "TELEGRAM_BOT_TOKEN",
+            "\"${providers.gradleProperty("telegramBotToken").orNull ?: ""}\""
+        )
+        buildConfigField("String", "GITHUB_RELEASE_REPO_OWNER", "\"$githubReleaseRepoOwner\"")
+        buildConfigField("String", "GITHUB_RELEASE_REPO_NAME", "\"$githubReleaseRepoName\"")
+        buildConfigField("String", "GITHUB_RELEASES_URL", "\"$githubReleaseRepoUrl\"")
         ndk {
             abiFilters.clear()
             abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
@@ -37,9 +100,7 @@ android {
             isJniDebuggable = false
         }
         debug {
-            // "normal" debug has minify for smaller APK to fit the GitHub 25 MB limit when zipped
-            // and for better performance in case users want to install a debug APK
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             isJniDebuggable = false
             applicationIdSuffix = ".debug"
         }
@@ -94,12 +155,12 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        jvmTarget = JavaVersion.VERSION_21.toString()
     }
 
     // see https://github.com/Helium314/HeliBoard/issues/477
@@ -111,6 +172,7 @@ android {
     namespace = "helium314.keyboard.latin"
     lint {
         abortOnError = true
+        disable += "MissingTranslation"
     }
 }
 
@@ -135,6 +197,17 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.6")
     implementation("sh.calvin.reorderable:reorderable:2.4.3") // for easier re-ordering, todo: check 3.0.0
     implementation("com.github.skydoves:colorpicker-compose:1.1.3") // for user-defined colors
+    
+    // coil for sticker image loading
+    implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("io.coil-kt:coil-gif:2.5.0")
+    
+    // icons
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.documentfile:documentfile:1.0.1")
+    
+    // network
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // test
     testImplementation(kotlin("test"))
@@ -143,4 +216,8 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("androidx.test:runner:1.6.2")
     testImplementation("androidx.test:core:1.6.1")
+}
+
+tasks.matching { it.name.startsWith("buildNdkBuild") }.configureEach {
+    doNotTrackState("NDK build emits transient .tmp object files that can disappear before Gradle snapshots outputs on Windows.")
 }

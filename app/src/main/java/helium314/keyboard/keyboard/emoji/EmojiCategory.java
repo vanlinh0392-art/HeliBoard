@@ -37,6 +37,7 @@ final class EmojiCategory {
     private final String TAG = EmojiCategory.class.getSimpleName();
 
     private static final int ID_UNSPECIFIED = -1;
+    public static final int ID_STICKERS = -2;
     public static final int ID_RECENTS = 0;
     private static final int ID_SMILEYS_EMOTION = 1;
     private static final int ID_PEOPLE_BODY = 2;
@@ -54,10 +55,14 @@ final class EmojiCategory {
     public final class CategoryProperties {
         public final int mCategoryId;
         private int mPageCount = -1;
+
         public CategoryProperties(final int categoryId) {
             mCategoryId = categoryId;
         }
+
         public int getPageCount() {
+            if (mCategoryId == ID_STICKERS)
+                return 1;
             if (mPageCount < 0)
                 mPageCount = computeCategoryPageCount(mCategoryId);
             return mPageCount;
@@ -101,7 +106,7 @@ final class EmojiCategory {
             R.string.spoken_description_emoji_category_objects,
             R.string.spoken_description_emoji_category_symbols,
             R.string.spoken_description_emoji_category_flags,
-            R.string.spoken_description_emoji_category_emoticons};
+            R.string.spoken_description_emoji_category_emoticons };
 
     private static final int[] sCategoryElementId = {
             KeyboardId.ELEMENT_EMOJI_RECENTS,
@@ -143,6 +148,7 @@ final class EmojiCategory {
 
     public void initialize() {
         int defaultCategoryId = EmojiCategory.ID_SMILEYS_EMOTION;
+        // addShownCategoryId(EmojiCategory.ID_STICKERS); // Disabled - causing crashes
         addShownCategoryId(EmojiCategory.ID_RECENTS);
         addShownCategoryId(EmojiCategory.ID_SMILEYS_EMOTION);
         addShownCategoryId(EmojiCategory.ID_PEOPLE_BODY);
@@ -159,7 +165,8 @@ final class EmojiCategory {
 
         DynamicGridKeyboard recentsKbd = getKeyboard(EmojiCategory.ID_RECENTS, 0);
         mCurrentCategoryId = mPrefs.getInt(Settings.PREF_LAST_SHOWN_EMOJI_CATEGORY_ID, defaultCategoryId);
-        mCurrentCategoryPageId = mPrefs.getInt(Settings.PREF_LAST_SHOWN_EMOJI_CATEGORY_PAGE_ID, Defaults.PREF_LAST_SHOWN_EMOJI_CATEGORY_PAGE_ID);
+        mCurrentCategoryPageId = mPrefs.getInt(Settings.PREF_LAST_SHOWN_EMOJI_CATEGORY_PAGE_ID,
+                Defaults.PREF_LAST_SHOWN_EMOJI_CATEGORY_PAGE_ID);
         if (!isShownCategoryId(mCurrentCategoryId)) {
             mCurrentCategoryId = defaultCategoryId;
         } else if (mCurrentCategoryId == EmojiCategory.ID_RECENTS &&
@@ -174,7 +181,7 @@ final class EmojiCategory {
 
     public void clearKeyboardCache() {
         mCategoryKeyboardMap.clear();
-        for (CategoryProperties props: mShownCategories)
+        for (CategoryProperties props : mShownCategories)
             props.mPageCount = -1; // reset page count in case size (number of keys per row) changed
     }
 
@@ -203,10 +210,16 @@ final class EmojiCategory {
     }
 
     public int getCategoryTabIcon(final int categoryId) {
+        if (categoryId == ID_STICKERS) {
+            return R.drawable.ic_sticker_toolbar;
+        }
         return mCategoryTabIconId[categoryId];
     }
 
     public String getAccessibilityDescription(final int categoryId) {
+        if (categoryId == ID_STICKERS) {
+            return "Stickers"; // TODO: Use resource ID
+        }
         return mRes.getString(sAccessibilityDescriptionResourceIdsForCategories[categoryId]);
     }
 
@@ -359,7 +372,7 @@ final class EmojiCategory {
 
     private static boolean canShowFlagEmoji() {
         Paint paint = new Paint();
-        String switzerland = "\uD83C\uDDE8\uD83C\uDDED"; //  U+1F1E8 U+1F1ED Flag for Switzerland
+        String switzerland = "\uD83C\uDDE8\uD83C\uDDED"; // U+1F1E8 U+1F1ED Flag for Switzerland
         return PaintCompat.hasGlyph(paint, switzerland);
     }
 

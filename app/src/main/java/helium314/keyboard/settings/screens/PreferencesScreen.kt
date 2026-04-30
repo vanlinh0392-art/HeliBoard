@@ -28,6 +28,7 @@ import helium314.keyboard.settings.SearchSettingsScreen
 import helium314.keyboard.settings.SettingsActivity
 import helium314.keyboard.settings.preferences.SliderPreference
 import helium314.keyboard.settings.preferences.SwitchPreference
+import helium314.keyboard.settings.preferences.TextInputPreference
 import helium314.keyboard.settings.Theme
 import helium314.keyboard.settings.initPreview
 import helium314.keyboard.settings.preferences.SwitchPreferenceWithEmojiDictWarning
@@ -42,6 +43,8 @@ fun PreferencesScreen(
     if ((b?.value ?: 0) < 0)
         Log.v("irrelevant", "stupid way to trigger recomposition on preference change")
     val clipboardHistoryEnabled = prefs.getBoolean(Settings.PREF_ENABLE_CLIPBOARD_HISTORY, Defaults.PREF_ENABLE_CLIPBOARD_HISTORY)
+    val voiceInputEnabled = prefs.getBoolean(Settings.PREF_VOICE_INPUT, Defaults.PREF_VOICE_INPUT)
+    val voiceBackend = prefs.getString(Settings.PREF_VOICE_BACKEND, Defaults.PREF_VOICE_BACKEND)
     val items = listOf(
         R.string.settings_category_input,
         Settings.PREF_SHOW_HINTS,
@@ -74,6 +77,10 @@ fun PreferencesScreen(
         Settings.PREF_SHOW_LANGUAGE_SWITCH_KEY,
         Settings.PREF_LANGUAGE_SWITCH_KEY,
         Settings.PREF_SHOW_EMOJI_KEY,
+        Settings.PREF_VOICE_INPUT,
+        if (voiceInputEnabled) Settings.PREF_VOICE_BACKEND else null,
+        if (voiceInputEnabled && voiceBackend == Defaults.PREF_VOICE_BACKEND_CUSTOM_HTTP)
+            Settings.PREF_VOICE_CUSTOM_HTTP_ENDPOINT else null,
         Settings.PREF_REMOVE_REDUNDANT_POPUPS,
         R.string.settings_category_clipboard_history,
         Settings.PREF_ENABLE_CLIPBOARD_HISTORY,
@@ -156,6 +163,40 @@ fun createPreferencesSettings(context: Context) = listOf(
     Setting(context, Settings.PREF_SHOW_EMOJI_KEY, R.string.show_emoji_key) {
         SwitchPreference(it, Defaults.PREF_SHOW_EMOJI_KEY) { KeyboardSwitcher.getInstance().reloadKeyboard() }
     },
+    Setting(context, Settings.PREF_VOICE_INPUT, R.string.voice) {
+        SwitchPreference(it, Defaults.PREF_VOICE_INPUT) {
+            if (it
+                && androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                helium314.keyboard.latin.permissions.PermissionsActivity.run(context, android.Manifest.permission.RECORD_AUDIO)
+            }
+            KeyboardSwitcher.getInstance().reloadKeyboard()
+            // todo: if permission is denied, maybe we should disable the setting again?
+            //  but we can't easily get the result here.
+            //  The key handler will check permission again anyway.
+        }
+    },
+    Setting(context, Settings.PREF_VOICE_BACKEND, R.string.voice_backend) {
+        ListPreference(
+            it,
+            listOf(
+                stringResource(R.string.voice_backend_google_visible) to Defaults.PREF_VOICE_BACKEND_GOOGLE_VISIBLE,
+                stringResource(R.string.voice_backend_custom_http) to Defaults.PREF_VOICE_BACKEND_CUSTOM_HTTP
+            ),
+            Defaults.PREF_VOICE_BACKEND
+        )
+    },
+    Setting(
+        context,
+        Settings.PREF_VOICE_CUSTOM_HTTP_ENDPOINT,
+        R.string.voice_custom_http_endpoint,
+        R.string.voice_custom_http_endpoint_summary
+    ) {
+        TextInputPreference(it, Defaults.PREF_VOICE_CUSTOM_HTTP_ENDPOINT) {
+            it.isBlank() || it.startsWith("http://") || it.startsWith("https://")
+        }
+    },
     Setting(context, Settings.PREF_REMOVE_REDUNDANT_POPUPS,
         R.string.remove_redundant_popups, R.string.remove_redundant_popups_summary)
     {
@@ -167,7 +208,8 @@ fun createPreferencesSettings(context: Context) = listOf(
         val ctx = LocalContext.current
         SwitchPreference(it, Defaults.PREF_ENABLE_CLIPBOARD_HISTORY) { ClipboardDao.getInstance(ctx)?.clearNonPinned() }
     },
-    Setting(context, Settings.PREF_CLIPBOARD_HISTORY_RETENTION_TIME, R.string.clipboard_history_retention_time) { setting ->
+    Setting(context, Settings.PREF_CLIPBOARD_HISTORY_RETENTION_TIME,
+        R.string.clipboard_history_retention_time, R.string.clipboard_history_retention_time_summary) { setting ->
         val ctx = LocalContext.current
         SliderPreference(
             name = setting.title,

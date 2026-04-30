@@ -93,7 +93,9 @@
          {@link helium314.keyboard.keyboard.KeyboardView}, some views inside it, for instance
          delete button, need themed {@link helium314.keyboard.keyboard.KeyboardView}
          attributes. -->
-    <style name="EmojiPalettesView" />
+    <style name="EmojiPalettesView">
+        <item name="iconStickersTab">@drawable/ic_sticker_tab</item>
+    </style>
     <style name="ClipboardHistoryView" />
     <style name="PopupKeysKeyboardView" />
     <style name="SuggestionStripView" />

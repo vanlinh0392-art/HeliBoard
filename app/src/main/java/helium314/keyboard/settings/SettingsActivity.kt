@@ -17,15 +17,18 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.res.stringResource
+import androidx.core.net.toUri
 import helium314.keyboard.compat.locale
 import helium314.keyboard.keyboard.KeyboardSwitcher
 import helium314.keyboard.latin.BuildConfig
@@ -41,6 +44,7 @@ import helium314.keyboard.latin.utils.cleanUnusedMainDicts
 import helium314.keyboard.latin.utils.prefs
 import helium314.keyboard.settings.dialogs.ConfirmationDialog
 import helium314.keyboard.settings.dialogs.NewDictionaryDialog
+import helium314.keyboard.settings.dialogs.ThreeButtonAlertDialog
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.BufferedOutputStream
 import java.io.File
@@ -106,7 +110,12 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
                             }
                         }
                     else {
-                        SettingsNavHost(onClickBack = { this.finish() })
+                        val startDestination = intent?.getStringExtra(EXTRA_START_DESTINATION)
+                        var releaseUpdate by remember { mutableStateOf<GitHubReleaseInfo?>(null) }
+                        SettingsNavHost(onClickBack = { this.finish() }, startDestination = startDestination)
+                        LaunchedEffect(startDestination) {
+                            releaseUpdate = GitHubReleaseChecker.checkForUpdate(this@SettingsActivity)
+                        }
                         if (showWelcomeWizard) {
                             WelcomeWizard(close = { showWelcomeWizard = false }, finish = this::finish)
                         } else if (crashReports.isNotEmpty()) {
@@ -125,6 +134,41 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
                                 },
                                 content = { Text("Crash report files found") },
                             )
+                        } else {
+                            val updateInfo = releaseUpdate
+                            if (updateInfo != null) {
+                                ThreeButtonAlertDialog(
+                                    onDismissRequest = { releaseUpdate = null },
+                                    onConfirmed = {
+                                        startActivity(Intent(Intent.ACTION_VIEW, updateInfo.htmlUrl.toUri()))
+                                    },
+                                    onNeutral = {
+                                        GitHubReleaseChecker.ignoreRelease(this@SettingsActivity, updateInfo.releaseKey)
+                                        releaseUpdate = null
+                                    },
+                                    title = { Text(stringResource(R.string.update_available_title)) },
+                                    content = {
+                                        val notes = updateInfo.notes.takeIf { it.isNotBlank() }
+                                        Text(
+                                            buildString {
+                                                appendLine(getString(R.string.update_available_message))
+                                                appendLine()
+                                                appendLine(getString(R.string.update_current_version, BuildConfig.VERSION_NAME))
+                                                appendLine(getString(R.string.update_latest_version, updateInfo.versionLabel))
+                                                if (notes != null) {
+                                                    appendLine()
+                                                    appendLine(getString(R.string.update_release_notes))
+                                                    append(notes.take(600))
+                                                }
+                                            }.trim()
+                                        )
+                                    },
+                                    scrollContent = true,
+                                    confirmButtonText = stringResource(R.string.update_download),
+                                    cancelButtonText = stringResource(R.string.update_later),
+                                    neutralButtonText = stringResource(R.string.update_ignore_this_version),
+                                )
+                            }
                         }
                     }
                     if (dictUri != null) {
@@ -214,6 +258,7 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
     }
 
     companion object {
+        const val EXTRA_START_DESTINATION = "start_destination"
         // public write so compose previews can show the screens
         // having it in a companion object is not ideal as it will stay in memory even after settings are closed
         // but it's small enough to not care

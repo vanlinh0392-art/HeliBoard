@@ -3,7 +3,7 @@ package helium314.keyboard.event
 import android.view.HapticFeedbackConstants
 
 enum class HapticEvent(@JvmField val feedbackConstant: Int, @JvmField val allowCustomDuration: Boolean) {
-    NO_HAPTICS(HapticFeedbackConstants.NO_HAPTICS, false),
+    NO_HAPTICS(NO_HAPTICS_FEEDBACK, false),
     KEY_PRESS(HapticFeedbackConstants.KEYBOARD_TAP, true),
 //    KEY_RELEASE(
 //        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -33,3 +33,5 @@ enum class HapticEvent(@JvmField val feedbackConstant: Int, @JvmField val allowC
 //        ?
 //    )
 }
+
+private const val NO_HAPTICS_FEEDBACK = -1

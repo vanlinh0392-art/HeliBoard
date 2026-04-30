@@ -127,12 +127,41 @@ class RichInputMethodManager private constructor() {
     }
 
     fun switchToShortcutIme(inputMethodService: InputMethodService) = scope.launch {
-        val imiId = shortcuts.firstOrNull()?.imi?.id ?: return@launch
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            inputMethodService.switchInputMethod(imiId, shortcuts.first().subtype)
+        val shortcut = shortcuts.firstOrNull()
+        if (shortcut != null) {
+            val imiId = shortcut.imi.id
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                inputMethodService.switchInputMethod(imiId, shortcut.subtype)
+            } else {
+                val token = inputMethodService.window.window?.attributes?.token ?: return@launch
+                @Suppress("Deprecation") imm.setInputMethodAndSubtype(token, imiId, shortcut.subtype)
+            }
         } else {
-            val token = inputMethodService.window.window?.attributes?.token ?: return@launch
-            @Suppress("Deprecation") imm.setInputMethodAndSubtype(token, imiId, shortcuts.first().subtype)
+            // Enhanced fallback: Try to find Google Voice IME in enabled list
+            val voiceIme = imm.enabledInputMethodList.firstOrNull {
+                it.packageName == "com.google.android.googlequicksearchbox" ||
+                it.packageName == "com.google.android.inputmethod.latin" && it.serviceName.contains("Voice", true) ||
+                it.serviceName.contains("VoiceInputMethodService", true)
+            }
+
+            if (voiceIme != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                     inputMethodService.switchInputMethod(voiceIme.id)
+                } else {
+                     val token = inputMethodService.window.window?.attributes?.token ?: return@launch
+                     @Suppress("Deprecation") imm.setInputMethod(token, voiceIme.id)
+                }
+            } else {
+                try {
+                    val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    intent.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                        android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    inputMethodService.startActivity(intent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to launch voice input intent", e)
+                }
+            }
         }
     }
 
@@ -211,9 +240,10 @@ class RichInputMethodManager private constructor() {
         if (isInitializedInternal) {
             return
         }
-        imm = ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        context = ctx
-        inputMethodInfoCache = InputMethodInfoCache(imm, ctx.packageName)
+        val appContext = ctx.applicationContext
+        imm = appContext.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        context = appContext
+        inputMethodInfoCache = InputMethodInfoCache(imm, appContext.packageName)
 
         // Initialize the current input method subtype and the shortcut IME.
         refreshSubtypeCaches()

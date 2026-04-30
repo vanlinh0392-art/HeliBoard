@@ -485,9 +485,35 @@ public final class RichInputConnection implements PrivateCommandPerformer {
             //     todo: understand where this inconsistent state comes from, is it really the other app's fault, or is it HeliBoard?
             Log.w(TAG, "cached text out of sync, reloading");
             reloadCursorPosition();
-            reloadTextCache();
+            if (reloadTextCache()) {
+                return getTextBeforeCursor(n, flags);
+            }
         }
         return result;
+    }
+
+    public void refreshTextCacheForDestructiveOperation() {
+        mIC = mParent.getCurrentInputConnection();
+        if (!isConnected()) return;
+
+        final ExtractedText et = mIC.getExtractedText(new ExtractedTextRequest(), 0);
+        final CharSequence textBeforeCursor = getTextBeforeCursorAndDetectLaggyConnection(
+                OPERATION_RELOAD_TEXT_CACHE,
+                SLOW_INPUT_CONNECTION_ON_FULL_RELOAD_MS,
+                Constants.EDITOR_CONTENTS_CACHE_SIZE,
+                0 /* flags */);
+        if (et == null || textBeforeCursor == null) return;
+
+        final int selectionStart = et.selectionStart + et.startOffset;
+        final int selectionEnd = et.selectionEnd + et.startOffset;
+        if (selectionStart != mExpectedSelStart || selectionEnd != mExpectedSelEnd
+                || !checkTextBeforeCursorConsistency(textBeforeCursor)) {
+            mExpectedSelStart = selectionStart;
+            mExpectedSelEnd = selectionEnd;
+            mCommittedTextBeforeComposingText.setLength(0);
+            mCommittedTextBeforeComposingText.append(textBeforeCursor);
+            mComposingText.setLength(0);
+        }
     }
 
     // checks whether the end of cached text before cursor is the same as end of the given CharSequence

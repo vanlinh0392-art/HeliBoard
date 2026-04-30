@@ -2,7 +2,9 @@
 package helium314.keyboard.settings.screens
 
 import android.content.Context
+import android.graphics.Typeface
 import android.os.Build
+import android.widget.Toast
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -76,7 +78,11 @@ fun AppearanceScreen(
         Settings.PREF_KEYBOARD_HEIGHT_SCALE_PREFIX,
         Settings.PREF_BOTTOM_PADDING_SCALE_PREFIX,
         Settings.PREF_SIDE_PADDING_SCALE_PREFIX,
+        Settings.PREF_SPACE_BAR_LENGTH_SCALE,
+        Settings.PREF_HIDE_PERIOD_KEY,
+        Settings.PREF_EMOJI_KEY_RIGHT,
         Settings.PREF_SPACE_BAR_TEXT,
+        Settings.PREF_KEYBOARD_FONT_FAMILY,
         SettingsWithoutKey.CUSTOM_FONT,
         Settings.PREF_FONT_SCALE,
         SettingsWithoutKey.CUSTOM_EMOJI_FONT,
@@ -244,8 +250,55 @@ fun createAppearanceSettings(context: Context) = listOf(
             description = { "${(100 * it).toInt()}%" }
         ) { KeyboardSwitcher.getInstance().setThemeNeedsReload() }
     },
+    Setting(context, Settings.PREF_SPACE_BAR_LENGTH_SCALE, R.string.prefs_space_bar_length_scale) { setting ->
+        SliderPreference(
+            name = setting.title,
+            key = setting.key,
+            default = Defaults.PREF_SPACE_BAR_LENGTH_SCALE,
+            range = 0.5f..3.0f,
+            description = { "${(100 * it).toInt()}%" }
+        ) { KeyboardSwitcher.getInstance().setThemeNeedsReload() }
+    },
     Setting(context, Settings.PREF_SPACE_BAR_TEXT, R.string.prefs_space_bar_text) {
         TextInputPreference(it, Defaults.PREF_SPACE_BAR_TEXT)
+    },
+    Setting(context, Settings.PREF_HIDE_PERIOD_KEY, R.string.prefs_hide_period_key, R.string.prefs_hide_period_key_summary) {
+        SwitchPreference(it, Defaults.PREF_HIDE_PERIOD_KEY) { KeyboardSwitcher.getInstance().setThemeNeedsReload() }
+    },
+    Setting(context, Settings.PREF_EMOJI_KEY_RIGHT, R.string.prefs_emoji_key_right, R.string.prefs_emoji_key_right_summary) {
+        SwitchPreference(it, Defaults.PREF_EMOJI_KEY_RIGHT) { KeyboardSwitcher.getInstance().setThemeNeedsReload() }
+    },
+    Setting(context, Settings.PREF_KEYBOARD_FONT_FAMILY, R.string.keyboard_font_family, R.string.keyboard_font_family_summary) { setting ->
+        val ctx = LocalContext.current
+        val items = listOf(
+            stringResource(R.string.keyboard_font_default) to "default",
+            "Be Vietnam Pro" to "asset:fonts/be_vietnam_pro.ttf",
+            "Noto Sans" to "asset:fonts/noto_sans.ttf",
+            "Open Sans" to "asset:fonts/open_sans.ttf",
+            "Lato" to "asset:fonts/lato.ttf",
+            "Montserrat" to "asset:fonts/montserrat.ttf",
+            "Inter" to "asset:fonts/inter.ttf",
+            "Nunito" to "asset:fonts/nunito.ttf",
+            "Lexend" to "asset:fonts/lexend.ttf",
+            "Gboard / Roboto" to "sans-serif",
+            "Roboto Medium" to "sans-serif-medium",
+            "Rounded" to "sans-serif-rounded",
+            "Condensed" to "sans-serif-condensed",
+            "Condensed Light" to "sans-serif-condensed-light",
+            "Light" to "sans-serif-light",
+            "Thin" to "sans-serif-thin",
+            "Black" to "sans-serif-black",
+            "Small Caps" to "sans-serif-smallcaps",
+            "Serif" to "serif",
+            "Monospace" to "monospace",
+            "Casual" to "casual",
+            "Cursive" to "cursive",
+        )
+        ListPreference(setting, items, Defaults.PREF_KEYBOARD_FONT_FAMILY) {
+            Settings.clearCachedTypeface()
+            KeyboardSwitcher.getInstance().setThemeNeedsReload()
+            Toast.makeText(ctx, fontSelectionMessage(ctx, it), Toast.LENGTH_LONG).show()
+        }
     },
     Setting(context, SettingsWithoutKey.CUSTOM_FONT, R.string.custom_font) {
         CustomFontPreference(it, Settings.getCustomFontFile(LocalContext.current), R.string.custom_font)
@@ -286,6 +339,26 @@ fun createAppearanceSettings(context: Context) = listOf(
         ListPreference(setting, items, Defaults.PREF_EMOJI_SKIN_TONE) { KeyboardSwitcher.getInstance().setThemeNeedsReload() }
     },
 )
+
+private fun fontSelectionMessage(context: Context, fontValue: String): String {
+    if (fontValue == Defaults.PREF_KEYBOARD_FONT_FAMILY)
+        return context.getString(R.string.keyboard_font_status_default)
+    if (fontValue.startsWith("asset:")) {
+        val assetPath = fontValue.substring("asset:".length)
+        return try {
+            context.assets.open(assetPath).close()
+            Typeface.createFromAsset(context.assets, assetPath)
+            context.getString(R.string.keyboard_font_status_bundled)
+        } catch (_: Exception) {
+            context.getString(R.string.keyboard_font_status_error)
+        }
+    }
+    val selectedTypeface = Typeface.create(fontValue, Typeface.NORMAL)
+    return if (selectedTypeface != Typeface.DEFAULT)
+        context.getString(R.string.keyboard_font_status_system)
+    else
+        context.getString(R.string.keyboard_font_status_fallback)
+}
 
 @Preview
 @Composable

@@ -16,6 +16,7 @@ import android.text.TextUtils
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.GestureDetector
+import android.view.Gravity
 import android.view.GestureDetector.SimpleOnGestureListener
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -234,13 +235,61 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     fun setSuggestions(suggestions: SuggestedWords, isRtlLanguage: Boolean) {
         clear()
         setRtl(isRtlLanguage)
-        suggestedWords = suggestions
+        suggestedWords = promoteShortcutSuggestion(suggestions)
         startIndexOfMoreSuggestions = layoutHelper.layoutAndReturnStartIndexOfMoreSuggestions(
             context, suggestedWords, suggestionsStrip, this
         )
         isExternalSuggestionVisible = false
         updateKeys()
     }
+
+    private fun promoteShortcutSuggestion(suggestions: SuggestedWords): SuggestedWords {
+        if (suggestions.size() <= SuggestedWords.INDEX_OF_AUTO_CORRECTION) {
+            return suggestions
+        }
+        if (suggestions.getInfo(SuggestedWords.INDEX_OF_AUTO_CORRECTION)
+                .isKindOf(SuggestedWordInfo.KIND_SHORTCUT)) {
+            return ensureShortcutIsShownAsPrimary(suggestions)
+        }
+        var shortcutIndex = -1
+        for (index in 0..<suggestions.size()) {
+            if (suggestions.getInfo(index).isKindOf(SuggestedWordInfo.KIND_SHORTCUT)) {
+                shortcutIndex = index
+                break
+            }
+        }
+        if (shortcutIndex < 0) return suggestions
+
+        val promoted = ArrayList<SuggestedWordInfo>(suggestions.size())
+        for (index in 0..<suggestions.size()) {
+            promoted.add(suggestions.getInfo(index))
+        }
+        val shortcut = promoted.removeAt(shortcutIndex)
+        promoted.add(SuggestedWords.INDEX_OF_AUTO_CORRECTION, shortcut)
+        return SuggestedWords(
+            promoted,
+            suggestions.mRawSuggestions,
+            suggestions.typedWordInfo,
+            suggestions.mTypedWordValid,
+            true,
+            suggestions.mIsObsoleteSuggestions,
+            suggestions.mInputStyle,
+            suggestions.mSequenceNumber
+        )
+    }
+
+    private fun ensureShortcutIsShownAsPrimary(suggestions: SuggestedWords) = SuggestedWords(
+        ArrayList<SuggestedWordInfo>(suggestions.size()).apply {
+            for (index in 0..<suggestions.size()) add(suggestions.getInfo(index))
+        },
+        suggestions.mRawSuggestions,
+        suggestions.typedWordInfo,
+        suggestions.mTypedWordValid,
+        true,
+        suggestions.mIsObsoleteSuggestions,
+        suggestions.mInputStyle,
+        suggestions.mSequenceNumber
+    )
 
     fun setExternalSuggestionView(view: View?, addCloseButton: Boolean) {
         clear()
@@ -264,6 +313,24 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
         }
 
         if (Settings.getValues().mAutoHideToolbar) setToolbarVisibility(false)
+    }
+
+    fun showVoiceStatus(text: CharSequence) {
+        clear()
+        isExternalSuggestionVisible = true
+        setToolbarVisibility(false)
+
+        val statusView = TextView(context, null, R.attr.suggestionWordStyle).apply {
+            layoutParams = LinearLayout.LayoutParams(0, LayoutParams.MATCH_PARENT, 1f)
+            gravity = Gravity.CENTER_VERTICAL
+            ellipsize = TextUtils.TruncateAt.END
+            isSingleLine = true
+            val horizontalPadding = 12.dpToPx(resources)
+            setPadding(horizontalPadding, 0, horizontalPadding, 0)
+            this.text = text
+            contentDescription = text
+        }
+        suggestionsStrip.addView(statusView)
     }
 
     fun setMoreSuggestionsHeight(remainingHeight: Int) {
@@ -497,9 +564,13 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     }
 
     fun updateVoiceKey() {
-        val show = Settings.getValues().mShowsVoiceInputKey
-        toolbar.findViewWithTag<View>(ToolbarKey.VOICE)?.isVisible = show
-        pinnedKeys.findViewWithTag<View>(ToolbarKey.VOICE)?.isVisible = show
+        // Only hide the voice key on password fields. Don't check mVoiceInputEnabled
+        // because that's a separate setting from the toolbar keys preference.
+        // If the user added VOICE to toolbar keys, it should always be visible
+        // (except on password fields).
+        val hide = Settings.getValues().mInputAttributes.mIsPasswordField
+        toolbar.findViewWithTag<View>(ToolbarKey.VOICE)?.isVisible = !hide
+        pinnedKeys.findViewWithTag<View>(ToolbarKey.VOICE)?.isVisible = !hide
     }
 
     private fun updateKeys() {
@@ -541,8 +612,14 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     private fun setupKey(view: ImageButton, colors: Colors) {
         view.setOnClickListener(this)
         view.setOnLongClickListener(this)
-        colors.setColor(view, ColorType.TOOL_BAR_KEY)
-        colors.setBackground(view, ColorType.STRIP_BACKGROUND)
+
+        if (view.tag == ToolbarKey.STICKERS) {
+            view.setBackgroundColor(Color.TRANSPARENT)
+            view.colorFilter = null
+        } else {
+            colors.setColor(view, ColorType.TOOL_BAR_KEY)
+            colors.setBackground(view, ColorType.STRIP_BACKGROUND)
+        }
     }
 
     companion object {

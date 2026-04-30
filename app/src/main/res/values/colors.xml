@@ -40,7 +40,7 @@
     <color name="background_amoled_dark">#1A1A1A</color>
 
     <!-- Color resources for LXX_Base theme. -->
-    <color name="keyboard_background_lxx_base">@android:color/white</color>
+    <color name="keyboard_background_lxx_base">#FFF2F2F2</color>
     <color name="key_background_lxx_base">@android:color/white</color>
     <color name="action_key_background_lxx_base">@android:color/white</color>
     <color name="emoji_tab_page_indicator_background_lxx_base">@android:color/white</color>

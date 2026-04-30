@@ -39,8 +39,10 @@ public final class InputAttributes {
     final public boolean mShouldShowVoiceInputKey;
     final public boolean mNoLearning;
     /**
-     * Whether the floating gesture preview should be disabled. If true, this should override the
-     * corresponding keyboard settings preference, always suppressing the floating preview text.
+     * Whether the floating gesture preview should be disabled. If true, this should
+     * override the
+     * corresponding keyboard settings preference, always suppressing the floating
+     * preview text.
      * {@link helium314.keyboard.latin.settings.SettingsValues#mGestureFloatingPreviewTextEnabled}
      */
     final public boolean mDisableGestureFloatingPreviewText;
@@ -54,7 +56,8 @@ public final class InputAttributes {
         mEditorInfo = editorInfo;
         mPackageNameForPrivateImeOptions = packageNameForPrivateImeOptions;
         mTargetApplicationPackageName = null != editorInfo ? editorInfo.packageName : null;
-        mInputType = AppWorkarounds.INSTANCE.adjustInputType(null != editorInfo ? editorInfo.inputType : 0, mTargetApplicationPackageName);
+        mInputType = AppWorkarounds.INSTANCE.adjustInputType(null != editorInfo ? editorInfo.inputType : 0,
+                mTargetApplicationPackageName);
         final int inputClass = mInputType & InputType.TYPE_MASK_CLASS;
         mIsPasswordField = InputTypeUtils.isPasswordInputType(mInputType)
                 || InputTypeUtils.isVisiblePasswordInputType(mInputType);
@@ -101,23 +104,23 @@ public final class InputAttributes {
         final boolean noMicrophone = mIsPasswordField
                 || InputTypeUtils.isEmailVariation(variation)
                 || hasNoMicrophoneKeyOption()
-                || !RichInputMethodManager.isInitialized() // avoid crash when only using spell checker
-                || !RichInputMethodManager.getInstance().isShortcutImeReady();
+                || !RichInputMethodManager.isInitialized(); // avoid crash when only using spell checker
         mShouldShowVoiceInputKey = !noMicrophone;
 
         mDisableGestureFloatingPreviewText = InputAttributes.inPrivateImeOptions(
                 mPackageNameForPrivateImeOptions, NO_FLOATING_GESTURE_PREVIEW, editorInfo);
 
-        // autocorrect if explicitly wanted, but also for most multi-line input types (like AOSP keyboard)
-        // originally, URI and email were always excluded from autocorrect (in Suggest.java), but this is
-        //  and unexpected place, and if the input field explicitly requests autocorrect we should follow the flag
-        mInputTypeShouldAutoCorrect = flagAutoCorrect || (
-                flagMultiLine
+        // autocorrect if explicitly wanted, but also for most multi-line input types
+        // (like AOSP keyboard)
+        // originally, URI and email were always excluded from autocorrect (in
+        // Suggest.java), but this is
+        // and unexpected place, and if the input field explicitly requests autocorrect
+        // we should follow the flag
+        mInputTypeShouldAutoCorrect = flagAutoCorrect || (flagMultiLine
                 && variation != InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT
                 && variation != InputType.TYPE_TEXT_VARIATION_URI
                 && !InputTypeUtils.isEmailVariation(variation)
-                && !flagNoSuggestions
-        );
+                && !flagNoSuggestions);
 
         mApplicationSpecifiedCompletionOn = flagAutoComplete && isFullscreenMode;
 
@@ -129,7 +132,6 @@ public final class InputAttributes {
                 && InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD != variation
                 && InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS != variation
                 && InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD != variation;
-
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             mNoLearning = (editorInfo.imeOptions & EditorInfo.IME_FLAG_NO_PERSONALIZED_LEARNING) != 0;
@@ -143,7 +145,8 @@ public final class InputAttributes {
 
     public boolean isSameInputType(final EditorInfo editorInfo) {
         return editorInfo.inputType == mInputType && mEditorInfo != null
-                && (mEditorInfo.imeOptions & EditorInfo.IME_FLAG_FORCE_ASCII) == (editorInfo.imeOptions & EditorInfo.IME_FLAG_FORCE_ASCII);
+                && (mEditorInfo.imeOptions & EditorInfo.IME_FLAG_FORCE_ASCII) == (editorInfo.imeOptions
+                        & EditorInfo.IME_FLAG_FORCE_ASCII);
     }
 
     private boolean hasNoMicrophoneKeyOption() {
@@ -256,7 +259,8 @@ public final class InputAttributes {
     }
 
     public static boolean inPrivateImeOptions(final String packageName, final String key, final EditorInfo editorInfo) {
-        if (editorInfo == null) return false;
+        if (editorInfo == null)
+            return false;
         final String findingKey = (packageName != null) ? packageName + "." + key : key;
         return StringUtilsKt.containsValueWhenSplit(editorInfo.privateImeOptions, findingKey, ",");
     }

@@ -23,13 +23,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 
 /**
- * A place to store the currently composing word with information such as adjacent key codes as well
+ * A place to store the currently composing word with information such as
+ * adjacent key codes as well
  */
 public final class WordComposer {
     private static final int MAX_WORD_LENGTH = DecoderSpecificConstants.DICTIONARY_MAX_WORD_LENGTH;
 
     public static final int CAPS_MODE_OFF = 0;
-    // 1 is shift bit, 2 is caps bit, 4 is auto bit but this is just a convention as these bits
+    // 1 is shift bit, 2 is caps bit, 4 is auto bit but this is just a convention as
+    // these bits
     // aren't used anywhere in the code
     public static final int CAPS_MODE_MANUAL_SHIFTED = 0x1;
     public static final int CAPS_MODE_MANUAL_SHIFT_LOCKED = 0x3;
@@ -45,11 +47,15 @@ public final class WordComposer {
     private SuggestedWordInfo mAutoCorrection;
     private boolean mIsResumed;
     private boolean mIsBatchMode;
-    // A memory of the last rejected batch mode suggestion, if any. This goes like this: the user
-    // gestures a word, is displeased with the results and hits backspace, then gestures again.
-    // At the very least we should avoid re-suggesting the same thing, and to do that we memorize
+    // A memory of the last rejected batch mode suggestion, if any. This goes like
+    // this: the user
+    // gestures a word, is displeased with the results and hits backspace, then
+    // gestures again.
+    // At the very least we should avoid re-suggesting the same thing, and to do
+    // that we memorize
     // the rejected suggestion in this variable.
-    // TODO: this should be done in a comprehensive way by the User History feature instead of
+    // TODO: this should be done in a comprehensive way by the User History feature
+    // instead of
     // as an ad-hockery here.
     private String mRejectedBatchModeSuggestion;
 
@@ -58,9 +64,12 @@ public final class WordComposer {
     private int mCapsCount;
     private int mDigitsCount;
     private int mCapitalizedMode;
-    // This is the number of code points entered so far. This is not limited to MAX_WORD_LENGTH.
-    // In general, this contains the size of mPrimaryKeyCodes, except when this is greater than
-    // MAX_WORD_LENGTH in which case mPrimaryKeyCodes only contain the first MAX_WORD_LENGTH
+    // This is the number of code points entered so far. This is not limited to
+    // MAX_WORD_LENGTH.
+    // In general, this contains the size of mPrimaryKeyCodes, except when this is
+    // greater than
+    // MAX_WORD_LENGTH in which case mPrimaryKeyCodes only contain the first
+    // MAX_WORD_LENGTH
     // code points.
     private int mCodePointSize;
     private int mCursorPositionWithinWord;
@@ -87,12 +96,15 @@ public final class WordComposer {
 
     /**
      * Restart the combiners, possibly with a new spec.
-     * @param combiningSpec The spec string for combining. This is found in the extra value.
+     * 
+     * @param combiningSpec The spec string for combining. This is found in the
+     *                      extra value.
      */
     public void restartCombining(final String combiningSpec) {
         final String nonNullCombiningSpec = null == combiningSpec ? "" : combiningSpec;
         if (!nonNullCombiningSpec.equals(mCombiningSpec)) {
-            mCombinerChain = new CombinerChain(mCombinerChain.getComposingWordWithCombiningFeedback().toString(), nonNullCombiningSpec);
+            mCombinerChain = new CombinerChain(mCombinerChain.getComposingWordWithCombiningFeedback().toString(),
+                    nonNullCombiningSpec);
             mCombiningSpec = nonNullCombiningSpec;
         }
     }
@@ -121,6 +133,7 @@ public final class WordComposer {
 
     /**
      * Number of keystrokes in the composing word.
+     * 
      * @return the number of keystrokes
      */
     public int size() {
@@ -141,13 +154,21 @@ public final class WordComposer {
 
     /**
      * Process an event and return an event, and return a processed event to apply.
+     * 
      * @param event the unprocessed event.
      * @return the processed event. Never null, but may be marked as consumed.
      */
     @NonNull
     public Event processEvent(@NonNull final Event event) {
+        if (event.getKeyCode() == KeyCode.DELETE && isCursorFrontOrMiddleOfComposingWord()) {
+            // Let InputLogic handle deletes around a moved cursor. Some combiners (for example
+            // Telex) consume backspace by trimming the end of the composing word, which is wrong
+            // once the cursor has been repositioned inside the word.
+            return event;
+        }
         final Event processedEvent = mCombinerChain.processEvent(mEvents, event);
-        // The retained state of the combiner chain may have changed while processing the event,
+        // The retained state of the combiner chain may have changed while processing
+        // the event,
         // so we need to update our cache.
         refreshTypedWordCache();
         mEvents.add(event);
@@ -157,7 +178,8 @@ public final class WordComposer {
     /**
      * Apply a processed input event.
      * <p>
-     * All input events should be supported, including software/hardware events, characters as well
+     * All input events should be supported, including software/hardware events,
+     * characters as well
      * as deletions, multiple inputs and gestures.
      *
      * @param event the event to apply. Must not be null.
@@ -166,8 +188,10 @@ public final class WordComposer {
         applyProcessedEvent(event, false);
     }
 
-    // specifically for that KeyCode.MULTIPLE_CODE_POINTS Hangul event: try keeping cursor position
-    // because typically nothing changes, todo: if really nothing changes maybe there is a better way to do it
+    // specifically for that KeyCode.MULTIPLE_CODE_POINTS Hangul event: try keeping
+    // cursor position
+    // because typically nothing changes, todo: if really nothing changes maybe
+    // there is a better way to do it
     public void applyProcessedEvent(final Event event, final boolean keepCursorPosition) {
         mCombinerChain.applyProcessedEvent(event);
         final int primaryCode = event.getCodePoint();
@@ -183,7 +207,8 @@ public final class WordComposer {
         }
         if (KeyCode.DELETE != event.getKeyCode()) {
             if (newIndex < MAX_WORD_LENGTH) {
-                // In the batch input mode, the {@code mInputPointers} holds batch input points and
+                // In the batch input mode, the {@code mInputPointers} holds batch input points
+                // and
                 // shouldn't be overridden by the "typed key" coordinates
                 // (See {@link #setBatchInputWord}).
                 if (!mIsBatchMode) {
@@ -197,8 +222,10 @@ public final class WordComposer {
                 mIsOnlyFirstCharCapitalized = mIsOnlyFirstCharCapitalized
                         && !Character.isUpperCase(primaryCode);
             }
-            if (Character.isUpperCase(primaryCode)) mCapsCount++;
-            if (Character.isDigit(primaryCode)) mDigitsCount++;
+            if (Character.isUpperCase(primaryCode))
+                mCapsCount++;
+            if (Character.isDigit(primaryCode))
+                mDigitsCount++;
         }
         mAutoCorrection = null;
     }
@@ -209,9 +236,9 @@ public final class WordComposer {
     }
 
     public boolean isCursorFrontOrMiddleOfComposingWord() {
-        if (DebugFlags.DEBUG_ENABLED && mCursorPositionWithinWord > mCodePointSize) {
-            throw new RuntimeException("Wrong cursor position : " + mCursorPositionWithinWord
-                    + "in a word of size " + mCodePointSize);
+        // Clamp cursor position if it's out of bounds (can happen with combiners)
+        if (mCursorPositionWithinWord > mCodePointSize) {
+            mCursorPositionWithinWord = mCodePointSize;
         }
         return mCursorPositionWithinWord != mCodePointSize;
     }
@@ -222,34 +249,52 @@ public final class WordComposer {
 
     /**
      * When the cursor is moved by the user, we need to update its position.
-     * If it falls inside the currently composing word, we don't reset the composition, and
+     * If it falls inside the currently composing word, we don't reset the
+     * composition, and
      * only update the cursor position.
      *
-     * @param expectedMoveAmount How many java chars to move the cursor. Negative values move
-     * the cursor backward, positive values move the cursor forward.
-     * @return true if the cursor is still inside the composing word, false otherwise.
+     * @param expectedMoveAmount How many java chars to move the cursor. Negative
+     *                           values move
+     *                           the cursor backward, positive values move the
+     *                           cursor forward.
+     * @return true if the cursor is still inside the composing word, false
+     *         otherwise.
      */
     public boolean moveCursorByAndReturnIfInsideComposingWord(final int expectedMoveAmount) {
         int actualMoveAmount = 0;
         int cursorPos = mCursorPositionWithinWord;
         // TODO: Don't make that copy. We can do this directly from mTypedWordCache.
         final int[] codePoints = StringUtils.toCodePointArray(mTypedWordCache);
+        if (codePoints.length == 0) {
+            return false;
+        }
+        // Clamp cursorPos to valid range to prevent ArrayIndexOutOfBoundsException
+        // (can happen when Telex combiner changes composing text length)
+        if (cursorPos > codePoints.length) {
+            cursorPos = codePoints.length;
+        }
+        if (cursorPos < 0) {
+            cursorPos = 0;
+        }
         if (expectedMoveAmount >= 0) {
-            // Moving the cursor forward for the expected amount or until the end of the word has
+            // Moving the cursor forward for the expected amount or until the end of the
+            // word has
             // been reached, whichever comes first.
             while (actualMoveAmount < expectedMoveAmount && cursorPos < codePoints.length) {
                 actualMoveAmount += Character.charCount(codePoints[cursorPos]);
                 ++cursorPos;
             }
         } else {
-            // Moving the cursor backward for the expected amount or until the start of the word
+            // Moving the cursor backward for the expected amount or until the start of the
+            // word
             // has been reached, whichever comes first.
             while (actualMoveAmount > expectedMoveAmount && cursorPos > 0) {
                 --cursorPos;
                 actualMoveAmount -= Character.charCount(codePoints[cursorPos]);
             }
         }
-        // If the actual and expected amounts differ, we crossed the start or the end of the word
+        // If the actual and expected amounts differ, we crossed the start or the end of
+        // the word
         // so the result would not be inside the composing word.
         if (actualMoveAmount != expectedMoveAmount) {
             return false;
@@ -271,7 +316,8 @@ public final class WordComposer {
         final int length = word.length();
         for (int i = 0; i < length; i = Character.offsetByCodePoints(word, i, 1)) {
             final int codePoint = Character.codePointAt(word, i);
-            // We don't want to override the batch input points that are held in mInputPointers
+            // We don't want to override the batch input points that are held in
+            // mInputPointers
             // (See {@link #add(int,int,int)}).
             final Event processedEvent = processEvent(Event.createEventForCodePointFromUnknownSource(codePoint));
             applyProcessedEvent(processedEvent);
@@ -280,19 +326,20 @@ public final class WordComposer {
 
     /**
      * Set the currently composing word to the one passed as an argument.
-     * This will register NOT_A_COORDINATE for X and Ys, and use the passed keyboard for proximity.
-     * @param codePoints the code points to set as the composing word.
-     * @param coordinates the x, y coordinates of the key in the CoordinateUtils format
+     * This will register NOT_A_COORDINATE for X and Ys, and use the passed keyboard
+     * for proximity.
+     * 
+     * @param codePoints  the code points to set as the composing word.
+     * @param coordinates the x, y coordinates of the key in the CoordinateUtils
+     *                    format
      */
     public void setComposingWord(final int[] codePoints, final int[] coordinates) {
         reset();
         final int length = codePoints.length;
         for (int i = 0; i < length; ++i) {
-            final Event processedEvent =
-                    processEvent(Event.createEventForCodePointFromAlreadyTypedText(codePoints[i],
-                        CoordinateUtils.xFromArray(coordinates, i),
-                        CoordinateUtils.yFromArray(coordinates, i))
-                    );
+            final Event processedEvent = processEvent(Event.createEventForCodePointFromAlreadyTypedText(codePoints[i],
+                    CoordinateUtils.xFromArray(coordinates, i),
+                    CoordinateUtils.yFromArray(coordinates, i)));
             applyProcessedEvent(processedEvent);
         }
         mIsResumed = true;
@@ -300,6 +347,7 @@ public final class WordComposer {
 
     /**
      * Returns the word as it was typed, without any correction applied.
+     * 
      * @return the word that was typed so far. Never returns null.
      */
     public String getTypedWord() {
@@ -307,11 +355,14 @@ public final class WordComposer {
     }
 
     /**
-     * Whether this composer is composing or about to compose a word in which only the first letter
+     * Whether this composer is composing or about to compose a word in which only
+     * the first letter
      * is a capital.
      * <p>
-     * If we do have a composing word, we just return whether the word has indeed only its first
-     * character capitalized. If we don't, then we return a value based on the capitalized mode,
+     * If we do have a composing word, we just return whether the word has indeed
+     * only its first
+     * character capitalized. If we don't, then we return a value based on the
+     * capitalized mode,
      * which tell us what is likely to happen for the next composing word.
      *
      * @return capitalization preference
@@ -323,6 +374,7 @@ public final class WordComposer {
 
     /**
      * Whether or not all of the user typed chars are upper case
+     * 
      * @return true if all user typed chars are upper case, false otherwise
      */
     public boolean isAllUpperCase() {
@@ -339,12 +391,14 @@ public final class WordComposer {
     }
 
     public char lastChar() {
-        if (!isComposingWord()) return 0;
+        if (!isComposingWord())
+            return 0;
         return mTypedWordCache.charAt(mTypedWordCache.length() - 1);
     }
 
     /**
-     * Returns true if more than one character is upper case, otherwise returns false.
+     * Returns true if more than one character is upper case, otherwise returns
+     * false.
      */
     public boolean isMostlyCaps() {
         return mCapsCount > 1;
@@ -360,12 +414,18 @@ public final class WordComposer {
     /**
      * Saves the caps mode at the start of composing.
      * <p>
-     * WordComposer needs to know about the caps mode for several reasons. The first is, we need
-     * to know after the fact what the reason was, to register the correct form into the user
-     * history dictionary: if the word was automatically capitalized, we should insert it in
-     * all-lower case but if it's a manual pressing of shift, then it should be inserted as is.
-     * Also, batch input needs to know about the current caps mode to display correctly
+     * WordComposer needs to know about the caps mode for several reasons. The first
+     * is, we need
+     * to know after the fact what the reason was, to register the correct form into
+     * the user
+     * history dictionary: if the word was automatically capitalized, we should
+     * insert it in
+     * all-lower case but if it's a manual pressing of shift, then it should be
+     * inserted as is.
+     * Also, batch input needs to know about the current caps mode to display
+     * correctly
      * capitalized suggestions.
+     * 
      * @param mode the mode at the time of start
      */
     public void setCapitalizedModeAtStartComposingTime(final int mode) {
@@ -373,11 +433,15 @@ public final class WordComposer {
     }
 
     /**
-     * Before fetching suggestions, we don't necessarily know about the capitalized mode yet.
+     * Before fetching suggestions, we don't necessarily know about the capitalized
+     * mode yet.
      * <p>
-     * If we don't have a composing word yet, we take a note of this mode so that we can then
-     * supply this information to the suggestion process. If we have a composing word, then
+     * If we don't have a composing word yet, we take a note of this mode so that we
+     * can then
+     * supply this information to the suggestion process. If we have a composing
+     * word, then
      * the previous mode has priority over this.
+     * 
      * @param mode the mode just before fetching suggestions
      */
     public void adviseCapitalizedModeBeforeFetchingSuggestions(final int mode) {
@@ -388,6 +452,7 @@ public final class WordComposer {
 
     /**
      * Returns whether the word was automatically capitalized.
+     * 
      * @return whether the word was automatically capitalized
      */
     public boolean wasAutoCapitalized() {
@@ -410,7 +475,8 @@ public final class WordComposer {
     }
 
     /**
-     * @return whether we started composing this word by resuming suggestion on an existing string
+     * @return whether we started composing this word by resuming suggestion on an
+     *         existing string
      */
     public boolean isResumed() {
         return mIsResumed;
@@ -420,8 +486,10 @@ public final class WordComposer {
     // committedWord should contain suggestion spans if applicable.
     public LastComposedWord commitWord(final int type, final CharSequence committedWord,
             final String separatorString, final NgramContext ngramContext) {
-        // Note: currently, we come here whenever we commit a word. If it's a MANUAL_PICK
-        // or a DECIDED_WORD we may cancel the commit later; otherwise, we should deactivate
+        // Note: currently, we come here whenever we commit a word. If it's a
+        // MANUAL_PICK
+        // or a DECIDED_WORD we may cancel the commit later; otherwise, we should
+        // deactivate
         // the last composed word to ensure this does not happen.
         final LastComposedWord lastComposedWord = new LastComposedWord(mEvents,
                 mInputPointers, mTypedWordCache.toString(), committedWord, separatorString,
@@ -478,6 +546,7 @@ public final class WordComposer {
 
     /**
      * Get the current combining spec.
+     * 
      * @return the combining spec string, or null if none is set.
      */
     public String getCombiningSpec() {

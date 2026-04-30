@@ -53,6 +53,8 @@
     <string name="settings_category_space">Space</string>
     <!-- Settings category title for Text correction/Suggestions -->
     <string name="settings_category_suggestions">Suggestions</string>
+
+    <string name="spoken_description_emoji_category_stickers">Stickers</string>
     <!-- Settings category title for Advanced/Experimental -->
     <string name="settings_category_experimental">Experimental</string>
     <!-- Settings category title for Appearance & Layout/Misc -->
@@ -197,6 +199,7 @@
     <string name="enable_clipboard_history_summary">If disabled, clipboard key will paste clipboard content if any</string>
     <!-- Preferences item for controlling clipboard history retention time -->
     <string name="clipboard_history_retention_time">History retention time</string>
+    <string name="clipboard_history_retention_time_summary">Use No limit for long-term storage. Pinned clips are never removed automatically.</string>
     <!-- Preferences item for showing pinned clipboard items first -->
     <string name="clipboard_history_pinned_first">Show pinned items on top</string>
     <!-- Preferences item for enabling swipe deletion -->
@@ -325,8 +328,28 @@
     <string name="copy" tools:keep="@string/copy" translatable="false">@android:string/copy</string>
     <string name="cut" tools:keep="@string/cut" translatable="false">@android:string/cut</string>
     <string name="clipboard" tools:keep="@string/clipboard">Clipboard</string>
+    <string name="stickers" tools:keep="@string/stickers">Stickers</string>
+    <plurals name="stickers_added">
+        <item quantity="one">Added %d sticker</item>
+        <item quantity="other">Added %d stickers</item>
+    </plurals>
+    <string name="sticker_add_failed">Could not add sticker</string>
     <string name="clear_clipboard" tools:keep="@string/clear_clipboard">Clear clipboard</string>
     <string name="voice" tools:keep="@string/voice">Voice input</string>
+    <string name="voice_backend">Voice backend</string>
+    <string name="voice_backend_google_headless">Google headless</string>
+    <string name="voice_backend_google_visible">Google visible UI</string>
+    <string name="voice_backend_custom_http">Custom HTTP backend</string>
+    <string name="voice_custom_http_endpoint">Custom STT endpoint</string>
+    <string name="voice_custom_http_endpoint_summary">POST WAV audio to your own speech-to-text endpoint</string>
+    <string name="voice_status_listening">Listening?</string>
+    <string name="voice_status_processing">Processing?</string>
+    <string name="voice_status_permission_required">Mic permission required</string>
+    <string name="voice_status_no_match">Did not catch that</string>
+    <string name="voice_status_google_unavailable">Google voice unavailable</string>
+    <string name="voice_status_backend_not_configured">Voice backend not configured</string>
+    <string name="voice_status_recording_failed">Could not start voice recorder</string>
+    <string name="voice_status_error">Voice input failed</string>
     <string name="numpad" tools:keep="@string/numpad" translatable="false">@string/layout_numpad</string>
     <string name="settings" tools:keep="@string/settings">Settings</string>
     <string name="select_all" tools:keep="@string/select_all" translatable="false">@android:string/selectAll</string>
@@ -392,6 +415,14 @@
     <!-- Title of the setting for customizing space bar text -->
     <string name="prefs_space_bar_text">Custom text on space bar</string>
     <!-- Title of the setting for adding / removing custom font file -->
+    <string name="keyboard_font_family">Keyboard font style</string>
+    <string name="keyboard_font_family_summary">Choose a built-in system font. Custom font file is used only when this is Default.</string>
+    <string name="keyboard_font_default">Default / custom file</string>
+    <string name="keyboard_font_status_default">Keyboard font: using default or custom font file</string>
+    <string name="keyboard_font_status_bundled">Keyboard font: bundled font loaded successfully</string>
+    <string name="keyboard_font_status_system">Keyboard font: available on this device</string>
+    <string name="keyboard_font_status_fallback">Keyboard font: not found on this device, Android will use fallback</string>
+    <string name="keyboard_font_status_error">Keyboard font: could not load this font</string>
     <string name="custom_font">Set custom font from file</string>
     <!-- Title of the setting for adding / removing custom font file used only for emojis -->
     <string name="custom_emoji_font">Set custom emoji font from file</string>
@@ -650,6 +681,24 @@ New dictionary:
     <string name="user_dict_settings_add_word_hint">Type a word</string>
     <!-- User dictionary settings. Hint for the text field to type the optional shortcut to add to the user dictionary. -->
     <string name="user_dict_settings_add_shortcut_hint">Optional shortcut</string>
+    <string name="user_dict_settings_add_shortcut_helper">Type the shortcut, then choose the saved word from suggestions.</string>
+    <string name="user_dict_backup_export">Back up shortcuts</string>
+    <string name="user_dict_backup_import">Import shortcuts</string>
+    <plurals name="user_dict_backup_exported">
+        <item quantity="one">Backed up %d shortcut</item>
+        <item quantity="other">Backed up %d shortcuts</item>
+    </plurals>
+    <plurals name="user_dict_backup_imported">
+        <item quantity="one">Imported %d shortcut</item>
+        <item quantity="other">Imported %d shortcuts</item>
+    </plurals>
+    <string name="user_dict_backup_import_result">Imported %1$d, skipped %2$d duplicate shortcuts</string>
+    <string name="user_dict_delete_all_shortcuts">Delete all shortcuts</string>
+    <string name="user_dict_delete_all_shortcuts_confirmation">Delete all %1$d shortcuts in this dictionary?</string>
+    <plurals name="user_dict_shortcuts_deleted">
+        <item quantity="one">Deleted %d shortcut</item>
+        <item quantity="other">Deleted %d shortcuts</item>
+    </plurals>
     <!-- User dictionary settings. The title of the dialog to edit an existing word in the user dictionary. -->
     <string name="user_dict_settings_edit_dialog_title">Edit word</string>
     <!-- User dictionary settings. The list item to choose to insert a word into the user dictionary for all languages -->
@@ -753,6 +802,14 @@ New dictionary:
     <string name="settings_screen_about">About</string>
     <!-- version for about screen -->
     <string name="version">Version</string>
+    <string name="update_available_title">Update available</string>
+    <string name="update_available_message">A newer version is available on GitHub.</string>
+    <string name="update_current_version">Current version: %1$s</string>
+    <string name="update_latest_version">Latest release: %1$s</string>
+    <string name="update_release_notes">Release notes</string>
+    <string name="update_download">Download</string>
+    <string name="update_later">Later</string>
+    <string name="update_ignore_this_version">Ignore this version</string>
     <!-- github repo link for about screen -->
     <string name="about_github_link">View on GitHub</string>
     <!-- link to the wiki for about screen -->
@@ -915,4 +972,9 @@ New dictionary:
     <string name="custom_subtype">Custom subtype</string>
     <!-- Name for landscape orientation, used in various settings -->
     <string name="landscape">Landscape</string>
+    <string name="prefs_space_bar_length_scale">Spacebar length</string>
+    <string name="prefs_hide_period_key">Hide period key</string>
+    <string name="prefs_hide_period_key_summary">Remove the period key from the keyboard bottom row</string>
+    <string name="prefs_emoji_key_right">Emoji key right of spacebar</string>
+    <string name="prefs_emoji_key_right_summary">Move the emoji key to the right side of the spacebar</string>
 </resources>

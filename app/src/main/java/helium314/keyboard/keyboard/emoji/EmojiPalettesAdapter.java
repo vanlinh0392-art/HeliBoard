@@ -13,11 +13,12 @@ import android.view.ViewGroup;
 
 import helium314.keyboard.keyboard.Keyboard;
 import helium314.keyboard.latin.R;
+import helium314.keyboard.keyboard.KeyboardActionListener;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
-final class EmojiPalettesAdapter extends RecyclerView.Adapter<EmojiPalettesAdapter.ViewHolder>{
+final class EmojiPalettesAdapter extends RecyclerView.Adapter<EmojiPalettesAdapter.ViewHolder> {
     private static final String TAG = EmojiPalettesAdapter.class.getSimpleName();
     private static final boolean DEBUG_PAGER = false;
 
@@ -25,7 +26,8 @@ final class EmojiPalettesAdapter extends RecyclerView.Adapter<EmojiPalettesAdapt
     private final EmojiViewCallback mEmojiViewCallback;
     private final EmojiCategory mEmojiCategory;
 
-    public EmojiPalettesAdapter(final EmojiCategory emojiCategory, int categoryId, final EmojiViewCallback emojiViewCallback) {
+    public EmojiPalettesAdapter(final EmojiCategory emojiCategory, int categoryId,
+            final EmojiViewCallback emojiViewCallback, final KeyboardActionListener listener) {
         mEmojiCategory = emojiCategory;
         mCategoryId = categoryId;
         mEmojiViewCallback = emojiViewCallback;
@@ -35,7 +37,7 @@ final class EmojiPalettesAdapter extends RecyclerView.Adapter<EmojiPalettesAdapt
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         final LayoutInflater inflater = LayoutInflater.from(parent.getContext());
-        final EmojiPageKeyboardView keyboardView = (EmojiPageKeyboardView)inflater.inflate(
+        final EmojiPageKeyboardView keyboardView = (EmojiPageKeyboardView) inflater.inflate(
                 R.layout.emoji_keyboard_page, parent, false);
         keyboardView.setEmojiViewCallback(mEmojiViewCallback);
         return new ViewHolder(keyboardView);
@@ -75,4 +77,3 @@ final class EmojiPalettesAdapter extends RecyclerView.Adapter<EmojiPalettesAdapt
         }
     }
 }
-

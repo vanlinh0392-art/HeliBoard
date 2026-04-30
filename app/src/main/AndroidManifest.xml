@@ -13,13 +13,17 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WRITE_USER_DICTIONARY" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application android:label="@string/english_ime_name"
             android:name="helium314.keyboard.latin.App"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:supportsRtl="true"
-            android:allowBackup="true"
+            android:allowBackup="false"
+            android:fullBackupContent="false"
+            android:dataExtractionRules="@xml/data_extraction_rules"
             android:defaultToDeviceProtectedStorage="true"
             android:directBootAware="true"
             tools:remove="android:appComponentFactory"
@@ -100,6 +104,32 @@ SPDX-License-Identifier: Apache-2.0 AND GPL-3.0-only
                 <action android:name="helium314.keyboard.dictionarypack.aosp.UNKNOWN_CLIENT" />
             </intent-filter>
         </receiver>
+
+        <!-- FileProvider for sticker sharing -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/sticker_file_paths" />
+        </provider>
+
+        <activity android:name="helium314.keyboard.latin.permissions.PermissionsActivity"
+              android:theme="@android:style/Theme.Translucent.NoTitleBar"
+              android:label=""
+              android:excludeFromRecents="true"
+              android:taskAffinity=""
+              android:launchMode="singleInstance" />
+
+        <activity android:name="helium314.keyboard.latin.voice.VoiceRecognitionActivity"
+              android:theme="@android:style/Theme.Translucent.NoTitleBar"
+              android:label=""
+              android:excludeFromRecents="true"
+              android:taskAffinity=""
+              android:exported="false"
+              android:launchMode="singleTask" />
 
     </application>
 

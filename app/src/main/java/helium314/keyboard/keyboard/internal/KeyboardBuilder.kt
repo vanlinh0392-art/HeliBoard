@@ -101,12 +101,110 @@ open class KeyboardBuilder<KP : KeyboardParams>(protected val mContext: Context,
     }
 
     open fun build(): Keyboard {
+        applyHidePeriodKey()
+        applyEmojiKeyRight()
+        applySpaceBarLengthScale()
+        // recalculate absolute dimensions after modifications to relative widths and key order
+        // skip for emoji keyboard since emoji keys have mWidth=0 (sized differently)
+        if (!mParams.mId.isEmojiKeyboard)
+            determineAbsoluteValues()
         if (mParams.mId.mIsSplitLayout
                 && mParams.mId.mElementId in KeyboardId.ELEMENT_ALPHABET..KeyboardId.ELEMENT_SYMBOLS_SHIFTED) {
             addSplit()
         }
         addKeysToParams()
         return Keyboard(mParams)
+    }
+
+    private fun applySpaceBarLengthScale() {
+        val scale = Settings.getValues().mSpaceBarLengthScale
+        if (scale == 1.0f) return
+        for (row in keysInRows) {
+            val spaceKey = row.firstOrNull { it.mCode == Constants.CODE_SPACE } ?: continue
+            val originalSum = row.sumOf { it.mWidth }
+            spaceKey.mWidth *= scale
+            val newSum = row.sumOf { it.mWidth }
+            val widthFactor = originalSum / newSum
+            row.forEach { it.mWidth *= widthFactor }
+        }
+    }
+
+    private fun applyHidePeriodKey() {
+        val sv = Settings.getValues()
+        if (!sv.mHidePeriodKey) return
+        for (row in keysInRows) {
+            val periodKey = row.firstOrNull { it.mCode == Constants.CODE_PERIOD } ?: continue
+            val spaceKey = row.firstOrNull { it.mCode == Constants.CODE_SPACE }
+            val periodWidth = periodKey.mWidth
+            row.remove(periodKey)
+            // redistribute width to space key if possible
+            if (spaceKey != null) {
+                spaceKey.mWidth += periodWidth
+            }
+        }
+    }
+
+    private fun applyEmojiKeyRight() {
+        val sv = Settings.getValues()
+        // If "Emoji Key Right" is ENABLED:
+        // - Emoji Key -> Move to RIGHT of Space
+        // - Voice Key -> Move to LEFT of Space
+        // If "Emoji Key Right" is DISABLED (Default):
+        // - Emoji Key -> Left of Space
+        // - Voice Key -> Right of Space (Default layout usually puts it there?)
+        
+        // Actually, looking at functional_keys.json:
+        // [Language, Emoji, Voice, Symbols, Space, Period, Action]
+        // Default seems to be: Emoji LEFT, Voice LEFT. Wait, let's re-read functional_keys.json.
+        // It is: [SymbolAlpha, Comma, Language, Emoji, Voice, Numpad, SPACE, Period, Action]
+        // So DEFAULT is: Emoji and Voice are LEFT of space.
+        
+        // User said: "sửa lại tuỳ chọn 'phím emoji bên phải' nếu bật thì phím voice bên trái, nếu tắt thì phím voice bên phải"
+        // Meaning:
+        // IF ON: Emoji RIGHT, Voice LEFT.
+        // IF OFF: Emoji LEFT, Voice RIGHT.
+        
+        for (row in keysInRows) {
+            val spaceIndex = row.indexOfFirst { it.mCode == Constants.CODE_SPACE }
+            if (spaceIndex < 0) continue
+
+            val emojiIndex = row.indexOfFirst { it.mCode == KeyCode.EMOJI }
+            val voiceIndex = row.indexOfFirst { it.mCode == KeyCode.VOICE_INPUT }
+            
+            val emojiKey = if (emojiIndex >= 0) row.removeAt(emojiIndex) else null
+            // Re-calculate space index after removal
+            var currentSpaceIndex = row.indexOfFirst { it.mCode == Constants.CODE_SPACE }
+            val voiceKey = if (voiceIndex >= 0) {
+                 // Check if voiceIndex was before or after emoji removal to adjust
+                 val adjustedVoiceIndex = row.indexOfFirst { it.mCode == KeyCode.VOICE_INPUT }
+                 if (adjustedVoiceIndex >= 0) row.removeAt(adjustedVoiceIndex) else null
+            } else null
+            
+            // Re-calculate space index after both removals
+            currentSpaceIndex = row.indexOfFirst { it.mCode == Constants.CODE_SPACE }
+            
+            if (currentSpaceIndex < 0) continue // Should not happen if space existed
+
+            if (sv.mEmojiKeyRight) {
+                // ON: Emoji RIGHT, Voice LEFT
+                if (voiceKey != null) {
+                    row.add(currentSpaceIndex, voiceKey) // Insert LEFT of space
+                    currentSpaceIndex++ // Space moves right
+                }
+                if (emojiKey != null) {
+                    row.add(currentSpaceIndex + 1, emojiKey) // Insert RIGHT of space
+                }
+            } else {
+                // OFF: Emoji LEFT, Voice RIGHT
+                if (emojiKey != null) {
+                    row.add(currentSpaceIndex, emojiKey) // Insert LEFT of space
+                    currentSpaceIndex++
+                }
+                if (voiceKey != null) {
+                    row.add(currentSpaceIndex + 1, voiceKey) // Insert RIGHT of space
+                }
+            }
+        }
     }
 
     // determine key size and positions using relative width and height

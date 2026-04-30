@@ -129,8 +129,8 @@ class ClipboardDao private constructor(private val db: Database) {
             return
 
         lastClearOldClips = SystemClock.elapsedRealtime()
-        val retentionTime = Settings.getValues()?.mClipboardHistoryRetentionTime ?: 121L
-        if (retentionTime > 120) return
+        val retentionTime = Settings.getValues()?.mClipboardHistoryRetentionTime ?: CLIPBOARD_RETENTION_NO_LIMIT
+        if (retentionTime >= CLIPBOARD_RETENTION_NO_LIMIT) return
         val minTime = System.currentTimeMillis() - retentionTime * 60 * 1000L
         if (!cache.removeAll { it.timeStamp < minTime && !it.isPinned })
             return // nothing was removed
@@ -172,6 +172,7 @@ class ClipboardDao private constructor(private val db: Database) {
         private const val COLUMN_TIMESTAMP = "TIMESTAMP"
         private const val COLUMN_PINNED = "PINNED"
         private const val COLUMN_TEXT = "TEXT" // we could enforce unique text, but that's only necessary if we can drop the cache (later)
+        private const val CLIPBOARD_RETENTION_NO_LIMIT = 121L
         const val CREATE_TABLE = """
             CREATE TABLE $TABLE (
                 $COLUMN_ID INTEGER PRIMARY KEY,

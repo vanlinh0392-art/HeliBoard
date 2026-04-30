@@ -578,6 +578,7 @@ object AppUpgrade {
                         val subtypes = prefs.getString(key, "")!!.split(Separators.SETS).filter { it.isNotEmpty() }.map {
                             val st = it.toSettingsSubtype()
                             if (st.locale.language == "ko") st.with(ExtraValue.COMBINING_RULES, "hangul")
+                            else if (st.locale.language == "vi") st.with(ExtraValue.COMBINING_RULES, "vi_telex")
                             else st
                         }
                         e.putString(key, subtypes.joinToString(Separators.SETS) { it.toPref() })
@@ -585,6 +586,8 @@ object AppUpgrade {
                         val subtype = prefs.getString(key, "")!!.toSettingsSubtype()
                         if (subtype.locale.language == "ko")
                             e.putString(key, subtype.with(ExtraValue.COMBINING_RULES, "hangul").toPref())
+                        else if (subtype.locale.language == "vi")
+                            e.putString(key, subtype.with(ExtraValue.COMBINING_RULES, "vi_telex").toPref())
                     }
                     return@forEach
                 }

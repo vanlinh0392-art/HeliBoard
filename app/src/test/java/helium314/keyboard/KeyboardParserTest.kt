@@ -429,34 +429,34 @@ f""", // no newline at the end
 
     @Test fun canLoadKeyboard() {
         val editorInfo = EditorInfo()
-        val subtype = SubtypeUtilsAdditional.createEmojiCapableAdditionalSubtype(Locale.ENGLISH, "qwerty", true)
+        val subtype = SubtypeUtilsAdditional.createEmojiCapableAdditionalSubtype(Locale.forLanguageTag("vi"), "qwerty", true)
         val (kb, keys) = buildKeyboard(editorInfo, subtype, KeyboardId.ELEMENT_ALPHABET)
         assertEquals(kb.sortedKeys.size, keys.sumOf { it.size })
     }
 
-    @Test fun `dvorak has 4 rows`() {
+    @Test fun `vietnamese qwerty layout has 4 rows`() {
         val editorInfo = EditorInfo()
-        val subtype = SubtypeUtilsAdditional.createEmojiCapableAdditionalSubtype(Locale.ENGLISH, "dvorak", true)
+        val subtype = SubtypeUtilsAdditional.createEmojiCapableAdditionalSubtype(Locale.forLanguageTag("vi"), "qwerty", true)
         val (_, keys) = buildKeyboard(editorInfo, subtype, KeyboardId.ELEMENT_ALPHABET)
         assertEquals(keys.size, 4)
     }
 
-    @Test fun `de_DE has extra keys`() {
+    @Test fun `vietnamese qwerty layout has stable row sizes`() {
         val editorInfo = EditorInfo()
-        val subtype = SubtypeUtilsAdditional.createEmojiCapableAdditionalSubtype(Locale.GERMANY, "qwertz+", true)
+        val subtype = SubtypeUtilsAdditional.createEmojiCapableAdditionalSubtype(Locale.forLanguageTag("vi"), "qwerty", true)
         val (_, keys) = buildKeyboard(editorInfo, subtype, KeyboardId.ELEMENT_ALPHABET)
-        assertEquals(11, keys[0].size)
+        assertEquals(10, keys[0].size)
         assertEquals(11, keys[1].size)
-        assertEquals(10, keys[2].size)
+        assertEquals(9, keys[2].size)
         val (_, keys2) = buildKeyboard(editorInfo, subtype, KeyboardId.ELEMENT_ALPHABET_AUTOMATIC_SHIFTED)
-        assertEquals(11, keys2[0].size)
+        assertEquals(10, keys2[0].size)
         assertEquals(11, keys2[1].size)
-        assertEquals(10, keys2[2].size)
+        assertEquals(9, keys2[2].size)
     }
 
     @Test fun `popup key count does not depend on shift for (for simple layout)`() {
         val editorInfo = EditorInfo()
-        val subtype = SubtypeUtilsAdditional.createEmojiCapableAdditionalSubtype(Locale.ENGLISH, "qwerty", true)
+        val subtype = SubtypeUtilsAdditional.createEmojiCapableAdditionalSubtype(Locale.forLanguageTag("vi"), "qwerty", true)
         val (kb, keys) = buildKeyboard(editorInfo, subtype, KeyboardId.ELEMENT_ALPHABET)
         val (kb2, keys2) = buildKeyboard(editorInfo, subtype, KeyboardId.ELEMENT_ALPHABET_AUTOMATIC_SHIFTED)
         assertEquals(kb.sortedKeys.size, kb2.sortedKeys.size)
