@@ -1,0 +1,2 @@
+Test release for GitHub update prompt.
+Increment version to 3.6.2 so Settings can detect a newer release.
