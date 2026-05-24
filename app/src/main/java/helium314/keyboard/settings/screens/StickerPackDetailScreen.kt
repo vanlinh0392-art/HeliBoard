@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,13 +24,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,6 +56,7 @@ import helium314.keyboard.latin.R
 import helium314.keyboard.settings.BackButton
 import helium314.keyboard.sticker.Sticker
 import helium314.keyboard.sticker.StickerManager
+import helium314.keyboard.sticker.StickerOutputFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +67,8 @@ fun StickerPackDetailScreen(
     val context = LocalContext.current
     var stickerManager by remember { mutableStateOf(StickerManager(context)) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
+    var showConvertDialog by remember { mutableStateOf(false) }
+    var selectedConvertFormat by remember { mutableStateOf(StickerOutputFormat.WEBP) }
     
     val pack = stickerManager.getPack(packId)
     
@@ -95,6 +104,11 @@ fun StickerPackDetailScreen(
             TopAppBar(
                 title = { Text(pack.name) },
                 navigationIcon = { BackButton(onClick = onClickBack) },
+                actions = {
+                    IconButton(onClick = { showConvertDialog = true }) {
+                        Icon(Icons.Filled.Refresh, contentDescription = "Chuyển định dạng gói")
+                    }
+                },
                 windowInsets = WindowInsets.safeDrawing
             )
         },
@@ -129,6 +143,73 @@ fun StickerPackDetailScreen(
             }
         }
     }
+
+    if (showConvertDialog) {
+        AlertDialog(
+            onDismissRequest = { showConvertDialog = false },
+            title = { Text("Chuyển định dạng gói") },
+            text = {
+                Column {
+                    Text("Convert toàn bộ sticker trong gói hiện tại sang:")
+                    StickerFormatOption(
+                        label = "WEBP",
+                        selected = selectedConvertFormat == StickerOutputFormat.WEBP,
+                        onClick = { selectedConvertFormat = StickerOutputFormat.WEBP }
+                    )
+                    StickerFormatOption(
+                        label = "JPG",
+                        selected = selectedConvertFormat == StickerOutputFormat.JPEG,
+                        onClick = { selectedConvertFormat = StickerOutputFormat.JPEG }
+                    )
+                    StickerFormatOption(
+                        label = "PNG",
+                        selected = selectedConvertFormat == StickerOutputFormat.PNG,
+                        onClick = { selectedConvertFormat = StickerOutputFormat.PNG }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val convertedCount = stickerManager.convertPackStickers(packId, selectedConvertFormat)
+                        refreshTrigger++
+                        showConvertDialog = false
+                        Toast.makeText(
+                            context,
+                            "Đã chuyển $convertedCount sticker sang ${selectedConvertFormat.label}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    enabled = pack.stickers.isNotEmpty()
+                ) {
+                    Text("Chuyển")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConvertDialog = false }) {
+                    Text("Hủy")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun StickerFormatOption(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(label)
+    }
 }
 
 @Composable
@@ -152,6 +233,12 @@ fun StickerItem(
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Inside
         )
+        StickerFileTypeBadge(
+            label = sticker.getFileTypeLabel(),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(4.dp)
+        )
         
         // Delete button overlay
         IconButton(
@@ -165,4 +252,22 @@ fun StickerItem(
             Icon(Icons.Filled.Delete, contentDescription = "Delete", modifier = Modifier.padding(2.dp))
         }
     }
+}
+
+@Composable
+private fun StickerFileTypeBadge(
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = label,
+        color = MaterialTheme.colorScheme.onSurface,
+        style = MaterialTheme.typography.labelSmall,
+        modifier = modifier
+            .background(
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
+                shape = RoundedCornerShape(6.dp)
+            )
+            .padding(horizontal = 5.dp, vertical = 2.dp)
+    )
 }

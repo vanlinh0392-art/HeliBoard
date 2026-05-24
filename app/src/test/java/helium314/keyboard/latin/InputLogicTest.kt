@@ -930,6 +930,208 @@ class InputLogicTest {
 
 }
 
+@RunWith(RobolectricTestRunner::class)
+@Config(shadows = [
+    ShadowLocaleManagerCompat::class,
+    ShadowInputMethodManager2::class,
+    ShadowInputMethodService::class,
+    ShadowKeyboardSwitcher::class,
+    ShadowHandler::class,
+    ShadowFacilitator2::class,
+])
+class VietnameseInputLogicCursorTest {
+    private lateinit var latinIME: LatinIME
+    private val inputLogic get() = latinIME.mInputLogic
+    private val connection: RichInputConnection get() = inputLogic.mConnection
+    private val beforeComposingReader = RichInputConnection::class.java
+        .getDeclaredField("mCommittedTextBeforeComposingText").apply { isAccessible = true }
+    private val connectionTextBeforeComposingText
+        get() = (beforeComposingReader.get(connection) as CharSequence).toString()
+    private val composingReader = RichInputConnection::class.java
+        .getDeclaredField("mComposingText").apply { isAccessible = true }
+    private val connectionComposingText get() = (composingReader.get(connection) as CharSequence).toString()
+
+    @BeforeTest
+    fun setUp() {
+        latinIME = Robolectric.setupService(LatinIME::class.java)
+        ShadowLog.setupLogging()
+        ShadowLog.stream = System.out
+        resetVietnameseInput()
+    }
+
+    @Test
+    fun `telex delete after editor cursor move deletes at actual cursor`() {
+        typeRaw("luoon")
+        assertEquals("lu\u00F4n", getText())
+        assertEquals(4, cursor)
+        assertEquals("lu\u00F4n", composingText)
+
+        moveCursorTo(1)
+        assertEquals("", composingText)
+        pressFunctionalKey(KeyCode.DELETE)
+
+        assertEquals("u\u00F4n", getText())
+        assertEquals(0, cursor)
+    }
+
+    @Test
+    fun `telex insert after editor cursor move inserts at actual cursor`() {
+        typeRaw("luoon")
+        assertEquals("lu\u00F4n", getText())
+        assertEquals(4, cursor)
+
+        moveCursorTo(1)
+        assertEquals("", composingText)
+        inputCodePoint('a'.code)
+
+        assertEquals("lau\u00F4n", getText())
+        assertEquals(2, cursor)
+        assertEquals("a", composingText)
+    }
+
+    @Test
+    fun `english telex escape insert after cursor move stays at actual cursor`() {
+        typeRaw("tesst")
+        assertEquals("test", getText())
+        assertEquals(4, cursor)
+
+        moveCursorTo(2)
+        assertEquals("", composingText)
+        inputCodePoint('x'.code)
+
+        assertEquals("texst", getText())
+        assertEquals(3, cursor)
+        assertEquals("x", composingText)
+    }
+
+    @Test
+    fun `english telex escape delete after cursor move stays at actual cursor`() {
+        typeRaw("tesst")
+        assertEquals("test", getText())
+        assertEquals(4, cursor)
+
+        moveCursorTo(2)
+        assertEquals("", composingText)
+        pressFunctionalKey(KeyCode.DELETE)
+
+        assertEquals("tst", getText())
+        assertEquals(1, cursor)
+    }
+
+    private fun resetVietnameseInput() {
+        currentScript = ScriptUtils.SCRIPT_LATIN
+        currentInputType = InputType.TYPE_CLASS_TEXT
+        text = ""
+        selectionStart = 0
+        selectionEnd = 0
+        composingStart = -1
+        composingEnd = -1
+        batchEdit = 0
+        messages.clear()
+        delayedMessages.clear()
+        lastAddedWord = ""
+        latinIME.prefs().edit { clear() }
+
+        startTextField()
+        latinIME.switchToSubtype(SubtypeSettings.getResourceSubtypesForLocale("vi".constructLocale()).first())
+        handleMessages()
+        assertEquals("vi_telex", inputLogic.combiningSpec)
+        assertEquals(false, inputLogic.canKeepComposingAcrossCursorMove())
+        checkConnectionConsistency()
+    }
+
+    private fun startTextField() {
+        val editorInfo = EditorInfo().apply {
+            inputType = currentInputType
+            initialSelStart = selectionStart
+            initialSelEnd = selectionEnd
+        }
+        latinIME.mHandler.onStartInput(editorInfo, false)
+        latinIME.mHandler.onStartInputView(editorInfo, false)
+        handleMessages()
+    }
+
+    private fun typeRaw(raw: String) {
+        raw.forEach { inputCodePoint(it.code) }
+    }
+
+    private fun inputCodePoint(codePoint: Int) {
+        latinIME.onEvent(Event.createEventForCodePointFromUnknownSource(codePoint))
+        handleMessages()
+        checkConnectionConsistency()
+    }
+
+    private fun pressFunctionalKey(keyCode: Int) {
+        latinIME.onEvent(Event.createSoftwareKeypressEvent(
+            Event.NOT_A_CODE_POINT,
+            keyCode,
+            0,
+            Constants.NOT_A_COORDINATE,
+            Constants.NOT_A_COORDINATE,
+            false
+        ))
+        handleMessages()
+        checkConnectionConsistency()
+    }
+
+    private fun moveCursorTo(position: Int) {
+        val oldStart = selectionStart
+        val oldEnd = selectionEnd
+        selectionStart = position
+        selectionEnd = position
+        latinIME.onUpdateSelection(oldStart, oldEnd, position, position, composingStart, composingEnd)
+        handleMessages()
+
+        assertEquals(position, selectionStart)
+        assertEquals(position, selectionEnd)
+        checkConnectionConsistency()
+    }
+
+    private fun getText() =
+        connection.getTextBeforeCursor(100, 0).toString() +
+                (connection.getSelectedText(0) ?: "") +
+                connection.getTextAfterCursor(100, 0)
+
+    private fun handleMessages() {
+        while (messages.isNotEmpty()) {
+            latinIME.mHandler.handleMessage(messages.first())
+            messages.removeAt(0)
+        }
+        while (delayedMessages.isNotEmpty()) {
+            val message = delayedMessages.first()
+            if (message.what != 2) {
+                latinIME.mHandler.handleMessage(message)
+            }
+            delayedMessages.removeAt(0)
+            while (messages.isNotEmpty()) {
+                latinIME.mHandler.handleMessage(messages.first())
+                messages.removeAt(0)
+            }
+        }
+        assertEquals(0, messages.size)
+        assertEquals(0, delayedMessages.size)
+    }
+
+    private fun checkConnectionConsistency() {
+        val expectedConnectionComposingText = if (composingStart == -1 || composingEnd == -1) {
+            ""
+        } else {
+            text.substring(composingStart, min(composingEnd, selectionEnd))
+        }
+        val textBeforeComposingText = if (composingStart == -1) {
+            textBeforeCursor
+        } else {
+            text.substring(0, composingStart)
+        }
+        assertEquals(selectionStart, connection.expectedSelectionStart)
+        assertEquals(selectionEnd, connection.expectedSelectionEnd)
+        assertEquals(textBeforeComposingText, connectionTextBeforeComposingText)
+        assertEquals(expectedConnectionComposingText, connectionComposingText)
+        assertEquals(textBeforeCursor, connection.getTextBeforeCursor(textBeforeCursor.length, 0).toString())
+        assertEquals(textAfterCursor, connection.getTextAfterCursor(textAfterCursor.length, 0).toString())
+    }
+}
+
 private var currentInputType = InputType.TYPE_CLASS_TEXT
 private var currentScript = ScriptUtils.SCRIPT_LATIN
 private val messages = mutableListOf<Message>() // for latinIME / ShadowInputMethodService

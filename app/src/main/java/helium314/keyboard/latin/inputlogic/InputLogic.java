@@ -409,6 +409,7 @@ public final class InputLogic {
                 || !mWordComposer.isComposingWord(); // safe to reset
         final boolean hasOrHadSelection = (oldSelStart != oldSelEnd || newSelStart != newSelEnd);
         final int moveAmount = newSelStart - oldSelStart;
+        final boolean canKeepComposingAcrossCursorMove = canKeepComposingAcrossCursorMove();
         // As an added small gift from the framework, it happens upon rotation when
         // there
         // is a selection that we get a wrong cursor position delivered to startInput()
@@ -426,7 +427,8 @@ public final class InputLogic {
         // is or was a selection regardless of whether it changed or not.
         if (hasOrHadSelection || !settingsValues.needsToLookupSuggestions()
                 || (selectionChangedOrSafeToReset
-                        && !mWordComposer.moveCursorByAndReturnIfInsideComposingWord(moveAmount))) {
+                        && (!canKeepComposingAcrossCursorMove
+                                || !mWordComposer.moveCursorByAndReturnIfInsideComposingWord(moveAmount)))) {
             // If we are composing a word and moving the cursor, we would want to set a
             // suggestion span for recorrection to work correctly. Unfortunately, that
             // would involve the keyboard committing some new text, which would move the
@@ -466,7 +468,9 @@ public final class InputLogic {
         // The cursor has been moved : we now accept to perform recapitalization
         mRecapitalizeStatus.enable();
         // We moved the cursor. If we are touching a word, we need to resume suggestion.
-        mLatinIME.mHandler.postResumeSuggestions(true /* shouldDelay */);
+        if (canKeepComposingAcrossCursorMove) {
+            mLatinIME.mHandler.postResumeSuggestions(true /* shouldDelay */);
+        }
         // Stop the last recapitalization, if started.
         mRecapitalizeStatus.stop();
         mWordBeingCorrectedByCursor = null;
@@ -474,7 +478,12 @@ public final class InputLogic {
     }
 
     public boolean moveCursorByAndReturnIfInsideComposingWord(int distance) {
-        return mWordComposer.moveCursorByAndReturnIfInsideComposingWord(distance);
+        return canKeepComposingAcrossCursorMove()
+                && mWordComposer.moveCursorByAndReturnIfInsideComposingWord(distance);
+    }
+
+    public boolean canKeepComposingAcrossCursorMove() {
+        return !"vi_telex".equals(getCombiningSpec());
     }
 
     public String getCombiningSpec() {

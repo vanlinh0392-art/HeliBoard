@@ -1,10 +1,12 @@
 package helium314.keyboard.settings.screens
 
 import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,12 +47,15 @@ import helium314.keyboard.settings.BackButton
 import android.widget.Toast
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import helium314.keyboard.sticker.CreatePackDialog
 import helium314.keyboard.sticker.PackManagerItem
 import helium314.keyboard.sticker.StickerManager
 import helium314.keyboard.sticker.StickerDownloader
 import helium314.keyboard.sticker.StickerImportProgress
+import helium314.keyboard.sticker.StickerOutputFormat
 import helium314.keyboard.sticker.StickerPack
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,10 +77,22 @@ fun StickerSettingsScreen(
     // Link import states
     var showLinkImportDialog by remember { mutableStateOf(false) }
     var linkInputText by remember { mutableStateOf("") }
+    var telegramOutputFormat by remember { mutableStateOf(StickerOutputFormat.WEBP) }
     var isDownloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf<StickerImportProgress?>(null) }
+    var downloadJob by remember { mutableStateOf<Job?>(null) }
     val coroutineScope = rememberCoroutineScope()
     val stickerDownloader = remember(stickerManager) { StickerDownloader(context, stickerManager) }
+
+    fun cancelLinkImport(closeDialog: Boolean) {
+        downloadJob?.cancel()
+        downloadJob = null
+        isDownloading = false
+        downloadProgress = null
+        if (closeDialog) {
+            showLinkImportDialog = false
+        }
+    }
     
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -197,10 +215,7 @@ fun StickerSettingsScreen(
     if (showLinkImportDialog) {
         AlertDialog(
             onDismissRequest = {
-                if (!isDownloading) {
-                    showLinkImportDialog = false
-                    downloadProgress = null
-                }
+                cancelLinkImport(closeDialog = true)
             },
             title = { Text("Nhập từ Link") },
             text = {
@@ -212,6 +227,23 @@ fun StickerSettingsScreen(
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                         singleLine = true,
                         enabled = !isDownloading
+                    )
+                    Text(
+                        text = "Định dạng khi nhập sticker Telegram:",
+                        modifier = Modifier.padding(top = 16.dp),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    StickerFormatOption(
+                        label = "WEBP",
+                        selected = telegramOutputFormat == StickerOutputFormat.WEBP,
+                        enabled = !isDownloading,
+                        onClick = { telegramOutputFormat = StickerOutputFormat.WEBP }
+                    )
+                    StickerFormatOption(
+                        label = "JPG",
+                        selected = telegramOutputFormat == StickerOutputFormat.JPEG,
+                        enabled = !isDownloading,
+                        onClick = { telegramOutputFormat = StickerOutputFormat.JPEG }
                     )
                     if (isDownloading) {
                         val progress = downloadProgress
@@ -242,19 +274,32 @@ fun StickerSettingsScreen(
                         if (linkInputText.isNotBlank()) {
                             isDownloading = true
                             downloadProgress = StickerImportProgress(message = "Dang bat dau...")
-                            coroutineScope.launch {
-                                val (success, message) = stickerDownloader.downloadAndImport(linkInputText) { progress ->
-                                    downloadProgress = progress
-                                }
-                                isDownloading = false
-                                downloadProgress = null
-                                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                                if (success) {
-                                    showLinkImportDialog = false
-                                    linkInputText = ""
-                                    refreshTrigger++
+                            var startedJob: Job? = null
+                            startedJob = coroutineScope.launch {
+                                try {
+                                    val (success, message) = stickerDownloader.downloadAndImport(
+                                        url = linkInputText,
+                                        telegramOutputFormat = telegramOutputFormat
+                                    ) { progress ->
+                                        downloadProgress = progress
+                                    }
+                                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                                    if (success) {
+                                        showLinkImportDialog = false
+                                        linkInputText = ""
+                                        refreshTrigger++
+                                    }
+                                } catch (e: CancellationException) {
+                                    Toast.makeText(context, "Da huy nhap sticker.", Toast.LENGTH_SHORT).show()
+                                } finally {
+                                    if (downloadJob == startedJob) {
+                                        isDownloading = false
+                                        downloadProgress = null
+                                        downloadJob = null
+                                    }
                                 }
                             }
+                            downloadJob = startedJob
                         }
                     },
                     enabled = !isDownloading && linkInputText.isNotBlank()
@@ -265,10 +310,8 @@ fun StickerSettingsScreen(
             dismissButton = {
                 TextButton(
                     onClick = {
-                        showLinkImportDialog = false
-                        downloadProgress = null
+                        cancelLinkImport(closeDialog = true)
                     },
-                    enabled = !isDownloading
                 ) {
                     Text("Hủy")
                 }
@@ -338,5 +381,28 @@ fun StickerSettingsScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun StickerFormatOption(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = onClick,
+            enabled = enabled
+        )
+        Text(label)
     }
 }

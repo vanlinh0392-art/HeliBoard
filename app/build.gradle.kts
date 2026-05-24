@@ -48,6 +48,10 @@ val githubReleaseRepoUrl = if (githubReleaseRepoOwner.isNotBlank() && githubRele
 } else {
     ""
 }
+val telegramBotToken = providers.gradleProperty("telegramBotToken")
+    .orElse(providers.environmentVariable("TELEGRAM_BOT_TOKEN"))
+    .orNull
+    .orEmpty()
 
 plugins {
     id("com.android.application")
@@ -74,7 +78,7 @@ android {
         buildConfigField(
             "String",
             "TELEGRAM_BOT_TOKEN",
-            "\"${providers.gradleProperty("telegramBotToken").orNull ?: ""}\""
+            "\"$telegramBotToken\""
         )
         buildConfigField("String", "GITHUB_RELEASE_REPO_OWNER", "\"$githubReleaseRepoOwner\"")
         buildConfigField("String", "GITHUB_RELEASE_REPO_NAME", "\"$githubReleaseRepoName\"")

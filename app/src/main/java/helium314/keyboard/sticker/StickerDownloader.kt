@@ -3,21 +3,49 @@ package helium314.keyboard.sticker
 import android.content.Context
 import android.net.Uri
 import helium314.keyboard.latin.BuildConfig
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 data class StickerImportProgress(
     val message: String,
     val completed: Int = 0,
     val total: Int? = null,
 )
+
+internal fun parseTelegramStickerSetName(rawUrl: String): String? {
+    val trimmedUrl = rawUrl.trim()
+    if (trimmedUrl.isEmpty()) {
+        return null
+    }
+
+    val normalizedUrl = if ("://" in trimmedUrl) trimmedUrl else "https://$trimmedUrl"
+    val uri = runCatching { Uri.parse(normalizedUrl) }.getOrNull() ?: return null
+    val host = uri.host?.lowercase()?.removePrefix("www.") ?: return null
+    if (host !in setOf("t.me", "telegram.me", "telegram.dog")) {
+        return null
+    }
+
+    val pathSegments = uri.pathSegments
+    if (pathSegments.size < 2 || pathSegments[0] != "addstickers") {
+        return null
+    }
+
+    return pathSegments[1].takeIf { it.isNotBlank() }
+}
 
 /**
  * Handles downloading stickers from direct ZIP URLs or Telegram sticker pack links.
@@ -33,16 +61,20 @@ class StickerDownloader(private val context: Context, private val stickerManager
 
     suspend fun downloadAndImport(
         url: String,
+        telegramOutputFormat: StickerOutputFormat = StickerOutputFormat.WEBP,
         onProgress: ((StickerImportProgress) -> Unit)? = null
     ): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         try {
             val normalizedUrl = url.trim()
+            val telegramSetName = parseTelegramStickerSetName(normalizedUrl)
             when {
-                normalizedUrl.contains("t.me/addstickers/") -> importFromTelegram(normalizedUrl, onProgress)
+                telegramSetName != null -> importFromTelegram(telegramSetName, telegramOutputFormat, onProgress)
                 normalizedUrl.endsWith(".zip", ignoreCase = true) || normalizedUrl.contains("zip") ->
                     importFromZipUrl(normalizedUrl, onProgress)
-                else -> Pair(false, "Vui long nhap link ZIP hoac link Telegram (t.me/addstickers/...)")
+                else -> Pair(false, "Vui long nhap link ZIP hoac link Telegram (t.me/addstickers/TenGoi)")
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             e.printStackTrace()
             Pair(false, "Loi tai xuong: ${e.message}")
@@ -53,25 +85,28 @@ class StickerDownloader(private val context: Context, private val stickerManager
         url: String,
         onProgress: ((StickerImportProgress) -> Unit)? = null
     ): Pair<Boolean, String> {
+        var tempZipFile: File? = null
         return try {
             reportProgress(onProgress, StickerImportProgress(message = "Dang tai file ZIP..."))
             val request = Request.Builder().url(url).build()
-            client.newCall(request).execute().use { response ->
+            executeRequest(request).use { response ->
                 val body = response.body
                 if (!response.isSuccessful || body == null) {
                     return Pair(false, "Khong the tai file, HTTP ${response.code}")
                 }
 
-                val tempZipFile = File(context.cacheDir, "temp_pack_${System.currentTimeMillis()}.zip")
+                val zipFile = File(context.cacheDir, "temp_pack_${System.currentTimeMillis()}.zip")
+                tempZipFile = zipFile
                 body.byteStream().use { input ->
-                    FileOutputStream(tempZipFile).use { output ->
+                    FileOutputStream(zipFile).use { output ->
                         input.copyTo(output)
                     }
                 }
 
                 reportProgress(onProgress, StickerImportProgress(message = "Dang giai nen goi sticker..."))
-                val newPackId = stickerManager.importPackFromZip(Uri.fromFile(tempZipFile))
-                tempZipFile.delete()
+                val newPackId = stickerManager.importPackFromZip(Uri.fromFile(zipFile))
+                tempZipFile?.delete()
+                tempZipFile = null
 
                 if (newPackId != null) {
                     Pair(true, "Nhap goi sticker thanh cong!")
@@ -79,32 +114,32 @@ class StickerDownloader(private val context: Context, private val stickerManager
                     Pair(false, "Tai xong nhung khong trich xuat duoc sticker hop le.")
                 }
             }
+        } catch (e: CancellationException) {
+            tempZipFile?.delete()
+            throw e
         } catch (e: Exception) {
             Pair(false, "Loi khi tai file ZIP: ${e.message}")
         }
     }
 
     private suspend fun importFromTelegram(
-        url: String,
+        setName: String,
+        outputFormat: StickerOutputFormat,
         onProgress: ((StickerImportProgress) -> Unit)? = null
     ): Pair<Boolean, String> {
         if (telegramBotToken.isBlank()) {
-            return Pair(false, "Tinh nang lay sticker Telegram tam thoi khong kha dung. Vui long dung folder hoac ZIP.")
+            return Pair(false, "Tinh nang Telegram chua duoc cau hinh. Vui long dung folder hoac ZIP.")
         }
 
+        var packCreatedId: String? = null
         return try {
             reportProgress(onProgress, StickerImportProgress(message = "Dang lay thong tin bo sticker..."))
-            val setName = url.substringAfterLast("addstickers/").substringBefore("?").trim()
-            if (setName.isEmpty()) {
-                return Pair(false, "Link Telegram khong hop le.")
-            }
-
             val apiUrl = telegramApiUrl("getStickerSet")
                 .newBuilder()
                 .addQueryParameter("name", setName)
                 .build()
             val request = Request.Builder().url(apiUrl).build()
-            val jsonText = client.newCall(request).execute().use { response ->
+            val jsonText = executeRequest(request).use { response ->
                 val body = response.body
                 if (!response.isSuccessful || body == null) {
                     return Pair(false, "Khong the lay thong tin goi sticker tu Telegram.")
@@ -138,10 +173,10 @@ class StickerDownloader(private val context: Context, private val stickerManager
                 return Pair(false, "Goi nay khong co sticker tinh de import.")
             }
 
-            var packCreatedId: String? = null
             var downloadedCount = 0
 
             for ((index, stickerObj) in staticStickers.withIndex()) {
+                currentCoroutineContext().ensureActive()
                 reportProgress(
                     onProgress,
                     StickerImportProgress(
@@ -157,7 +192,7 @@ class StickerDownloader(private val context: Context, private val stickerManager
                     .addQueryParameter("file_id", fileId)
                     .build()
                 val fileReq = Request.Builder().url(fileUrl).build()
-                val fileRespText = client.newCall(fileReq).execute().use { fileRes ->
+                val fileRespText = executeRequest(fileReq).use { fileRes ->
                     val body = fileRes.body
                     if (!fileRes.isSuccessful || body == null) {
                         null
@@ -174,7 +209,7 @@ class StickerDownloader(private val context: Context, private val stickerManager
                 val filePath = fileRespJson.getJSONObject("result").getString("file_path")
                 val downloadUrl = telegramFileUrl(filePath)
                 val dlReq = Request.Builder().url(downloadUrl).build()
-                val tempFile = client.newCall(dlReq).execute().use { dlRes ->
+                val tempFile = executeRequest(dlReq).use { dlRes ->
                     val body = dlRes.body
                     if (!dlRes.isSuccessful || body == null) {
                         null
@@ -194,15 +229,18 @@ class StickerDownloader(private val context: Context, private val stickerManager
                     packCreatedId = it
                 }
 
-                val addedSticker = stickerManager.addStickerFromUri(
-                    packId = currentPackId,
-                    uri = Uri.fromFile(tempFile),
-                    normalizeToWebp = true
-                )
-                if (addedSticker != null) {
-                    downloadedCount++
+                try {
+                    val addedSticker = stickerManager.addStickerFromUri(
+                        packId = currentPackId,
+                        uri = Uri.fromFile(tempFile),
+                        outputFormat = outputFormat
+                    )
+                    if (addedSticker != null) {
+                        downloadedCount++
+                    }
+                } finally {
+                    tempFile.delete()
                 }
-                tempFile.delete()
 
                 reportProgress(
                     onProgress,
@@ -220,8 +258,31 @@ class StickerDownloader(private val context: Context, private val stickerManager
                 packCreatedId?.let { stickerManager.deletePack(it) }
                 Pair(false, "Khong lay duoc sticker nao. Goi nay co the toan sticker dong.")
             }
+        } catch (e: CancellationException) {
+            packCreatedId?.let { stickerManager.deletePack(it) }
+            throw e
         } catch (e: Exception) {
             Pair(false, "Loi ket noi Telegram API: ${e.message}")
+        }
+    }
+
+    private suspend fun executeRequest(request: Request): Response {
+        currentCoroutineContext().ensureActive()
+        return suspendCancellableCoroutine { continuation ->
+            val call = client.newCall(request)
+            continuation.invokeOnCancellation { call.cancel() }
+            try {
+                val response = call.execute()
+                if (continuation.isActive) {
+                    continuation.resume(response)
+                } else {
+                    response.close()
+                }
+            } catch (e: Exception) {
+                if (continuation.isActive) {
+                    continuation.resumeWithException(e)
+                }
+            }
         }
     }
 

@@ -25,19 +25,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.Warning
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.res.colorResource
@@ -58,18 +55,13 @@ fun StickerPickerPanel(
     var selectedPackIndex by remember { mutableIntStateOf(0) }
     var selectedStickers by remember { mutableStateOf<List<Sticker>>(emptyList()) }
     var stickersWaitingForSendMode by remember { mutableStateOf<List<Sticker>>(emptyList()) }
-    var searchQuery by remember { mutableStateOf("") }
     var refreshTick by remember { mutableIntStateOf(0) }
     val isSelectionMode = selectedStickers.isNotEmpty()
     val allPacks = remember(refreshTick, stickerManager) {
         listOf(stickerManager.recentPack, stickerManager.favoritePack) + stickerManager.packs
     }
     val selectedPack = allPacks.getOrNull(selectedPackIndex)
-    val visibleStickers = if (searchQuery.isBlank()) {
-        selectedPack?.stickers.orEmpty()
-    } else {
-        stickerManager.searchStickers(searchQuery)
-    }
+    val visibleStickers = selectedPack?.stickers.orEmpty()
     
     Column(
         modifier = modifier
@@ -102,7 +94,6 @@ fun StickerPickerPanel(
                 onPackSelected = { 
                     selectedPackIndex = it 
                     selectedStickers = emptyList() // clear selection on tab change
-                    searchQuery = ""
                 },
                 onBackClick = onBackClick,
                 onAddClick = onAddPackClick,
@@ -129,18 +120,8 @@ fun StickerPickerPanel(
             )
         }
 
-        if (!isSelectionMode) {
-            StickerSearchBar(
-                query = searchQuery,
-                onQueryChange = {
-                    searchQuery = it
-                    selectedStickers = emptyList()
-                }
-            )
-        }
-
         // Sticker Grid
-        if (selectedPack != null || searchQuery.isNotBlank()) {
+        if (selectedPack != null) {
             StickerGrid(
                 stickers = visibleStickers,
                 selectedStickers = selectedStickers,
@@ -227,40 +208,6 @@ fun StickerSendModePrompt(
             }
         }
     }
-}
-
-@Composable
-fun StickerSearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit
-) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .height(48.dp),
-        placeholder = { Text("Tìm sticker theo tên hoặc tag") },
-        leadingIcon = {
-            Icon(
-                imageVector = Icons.Filled.Search,
-                contentDescription = null
-            )
-        },
-        trailingIcon = {
-            if (query.isNotBlank()) {
-                IconButton(onClick = { onQueryChange("") }) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = "Xóa tìm kiếm"
-                    )
-                }
-            }
-        },
-        singleLine = true,
-        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
-    )
 }
 
 /**

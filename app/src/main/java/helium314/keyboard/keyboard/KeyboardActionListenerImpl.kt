@@ -305,7 +305,7 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
         //  * inputType is NOT of variant InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT (variant appears to always be 0)
         //     -> this is "fixed" now using AppWorkarounds.adjustInputType
         val variation = InputType.TYPE_MASK_VARIATION and Settings.getValues().mInputAttributes.mInputType
-        val canKeepComposingAcrossCursorMove = inputLogic.combiningSpec != "vi_telex"
+        val canKeepComposingAcrossCursorMove = inputLogic.canKeepComposingAcrossCursorMove()
         if (canKeepComposingAcrossCursorMove
                 && variation != InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT
                 && inputLogic.moveCursorByAndReturnIfInsideComposingWord(moveSteps)) {
@@ -321,7 +321,7 @@ class KeyboardActionListenerImpl(private val latinIME: LatinIME, private val inp
             return true
         }
 
-        val shouldResumeSuggestionsAfterMove = inputLogic.combiningSpec != "vi_telex"
+        val shouldResumeSuggestionsAfterMove = inputLogic.canKeepComposingAcrossCursorMove()
         inputLogic.finishInput()
         val newPosition = connection.expectedSelectionStart + moveSteps
         connection.setSelection(newPosition, newPosition)

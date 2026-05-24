@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
@@ -203,7 +205,12 @@ class StickerManager(private val context: Context) {
     
     // ========== Sticker Operations ==========
     
-    fun addStickerFromUri(packId: String, uri: Uri, normalizeToWebp: Boolean = false): Sticker? {
+    fun addStickerFromUri(
+        packId: String,
+        uri: Uri,
+        normalizeToWebp: Boolean = false,
+        outputFormat: StickerOutputFormat = if (normalizeToWebp) StickerOutputFormat.WEBP else StickerOutputFormat.ORIGINAL
+    ): Sticker? {
         val pack = getPack(packId) ?: return null
         
         // Copy image to app storage
@@ -212,7 +219,7 @@ class StickerManager(private val context: Context) {
             sourceUri = uri,
             packId = packId,
             stickerId = stickerId,
-            normalizeToWebp = normalizeToWebp
+            outputFormat = outputFormat
         ) ?: return null
         
         val sticker = Sticker(
@@ -366,6 +373,51 @@ class StickerManager(private val context: Context) {
             }
         }
     }
+
+    fun convertPackStickers(packId: String, outputFormat: StickerOutputFormat): Int {
+        if (outputFormat == StickerOutputFormat.ORIGINAL) return 0
+        val pack = getPack(packId) ?: return 0
+        if (pack.stickers.isEmpty()) return 0
+
+        var convertedCount = 0
+        val convertedStickers = pack.stickers.map { sticker ->
+            val sourceUri = sticker.uri.toUri()
+            val newFile = copyStickerToStorage(
+                sourceUri = sourceUri,
+                packId = packId,
+                stickerId = sticker.id,
+                outputFormat = outputFormat
+            ) ?: return@map sticker
+
+            try {
+                val oldFile = File(sourceUri.path ?: "")
+                if (oldFile.absolutePath != newFile.file.absolutePath) oldFile.delete()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            convertedCount++
+            sticker.copy(
+                uri = Uri.fromFile(newFile.file).toString(),
+                mimeType = newFile.mimeType,
+                name = sticker.name.substringBeforeLast(".", sticker.name) + ".${outputFormat.extension}"
+            )
+        }.toMutableList()
+
+        if (convertedCount > 0) {
+            val packIndex = _packs.indexOfFirst { it.id == packId }
+            if (packIndex >= 0) {
+                _packs[packIndex] = pack.copy(
+                    stickers = convertedStickers,
+                    coverUri = convertedStickers.firstOrNull()?.uri
+                )
+            }
+            syncRecentWithPacks()
+            savePacks()
+        }
+
+        return convertedCount
+    }
     
     // ========== Recent Stickers ==========
     
@@ -475,27 +527,37 @@ class StickerManager(private val context: Context) {
         sourceUri: Uri,
         packId: String,
         stickerId: String,
-        normalizeToWebp: Boolean = false
+        outputFormat: StickerOutputFormat = StickerOutputFormat.ORIGINAL
     ): StoredStickerFile? {
         return try {
             val packDir = File(context.filesDir, "$STICKER_DIR/$packId")
             if (!packDir.exists()) packDir.mkdirs()
             
-            val extension = if (normalizeToWebp) "webp" else getExtension(sourceUri)
+            val extension = when (outputFormat) {
+                StickerOutputFormat.ORIGINAL -> getExtension(sourceUri)
+                else -> outputFormat.extension
+            }
             val destFile = File(packDir, "$stickerId.$extension")
             
-            if (normalizeToWebp) {
-                if (!writeStickerAsWebp(sourceUri, destFile)) {
+            when (outputFormat) {
+                StickerOutputFormat.WEBP -> if (!writeStickerBitmap(sourceUri, destFile, outputFormat)) {
                     return null
                 }
-            } else {
-                val inputStream = context.contentResolver.openInputStream(sourceUri) ?: return null
-                inputStream.use { input ->
-                    destFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
+                StickerOutputFormat.JPEG -> if (!writeStickerBitmap(sourceUri, destFile, outputFormat)) {
+                    return null
                 }
-                if (destFile.length() <= 0L) return null
+                StickerOutputFormat.PNG -> if (!writeStickerBitmap(sourceUri, destFile, outputFormat)) {
+                    return null
+                }
+                StickerOutputFormat.ORIGINAL -> {
+                    val inputStream = openStickerInputStream(sourceUri) ?: return null
+                    inputStream.use { input ->
+                        destFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    if (destFile.length() <= 0L) return null
+                }
             }
             
             StoredStickerFile(
@@ -508,23 +570,42 @@ class StickerManager(private val context: Context) {
         }
     }
 
-    private fun writeStickerAsWebp(sourceUri: Uri, destFile: File): Boolean {
-        val bitmap = context.contentResolver.openInputStream(sourceUri)?.use { input ->
+    private fun writeStickerBitmap(
+        sourceUri: Uri,
+        destFile: File,
+        outputFormat: StickerOutputFormat
+    ): Boolean {
+        val bitmap = openStickerInputStream(sourceUri)?.use { input ->
             BitmapFactory.decodeStream(input)
         } ?: return false
 
         val scaledBitmap = scaleBitmapIfNeeded(bitmap)
-        val compressFormat = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Bitmap.CompressFormat.WEBP_LOSSLESS
+        val compressFormat = when (outputFormat) {
+            StickerOutputFormat.JPEG -> Bitmap.CompressFormat.JPEG
+            StickerOutputFormat.PNG -> Bitmap.CompressFormat.PNG
+            StickerOutputFormat.WEBP -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                Bitmap.CompressFormat.WEBP_LOSSLESS
+            } else {
+                @Suppress("DEPRECATION")
+                Bitmap.CompressFormat.WEBP
+            }
+            StickerOutputFormat.ORIGINAL -> return false
+        }
+        val quality = if (outputFormat == StickerOutputFormat.JPEG) 92 else 100
+
+        val bitmapToWrite = if (outputFormat == StickerOutputFormat.JPEG) {
+            flattenBitmapForJpeg(scaledBitmap)
         } else {
-            @Suppress("DEPRECATION")
-            Bitmap.CompressFormat.WEBP
+            scaledBitmap
         }
 
         val success = FileOutputStream(destFile).use { output ->
-            scaledBitmap.compress(compressFormat, 100, output)
+            bitmapToWrite.compress(compressFormat, quality, output)
         }
 
+        if (bitmapToWrite !== scaledBitmap) {
+            bitmapToWrite.recycle()
+        }
         if (scaledBitmap !== bitmap) {
             scaledBitmap.recycle()
         }
@@ -532,6 +613,23 @@ class StickerManager(private val context: Context) {
 
         return success
     }
+
+    private fun flattenBitmapForJpeg(bitmap: Bitmap): Bitmap {
+        val flattenedBitmap = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+        Canvas(flattenedBitmap).apply {
+            drawColor(Color.WHITE)
+            drawBitmap(bitmap, 0f, 0f, null)
+        }
+        return flattenedBitmap
+    }
+
+    private fun openStickerInputStream(uri: Uri) =
+        if (uri.toString().startsWith("file:///android_asset/")) {
+            val assetPath = uri.toString().removePrefix("file:///android_asset/")
+            context.assets.open(assetPath)
+        } else {
+            context.contentResolver.openInputStream(uri)
+        }
 
     private fun scaleBitmapIfNeeded(bitmap: Bitmap): Bitmap {
         val largestEdge = maxOf(bitmap.width, bitmap.height)

@@ -3,6 +3,17 @@ package helium314.keyboard.sticker
 import androidx.core.net.toUri
 import kotlinx.serialization.Serializable
 
+enum class StickerOutputFormat(
+    val extension: String,
+    val mimeType: String,
+    val label: String,
+) {
+    ORIGINAL("", "", "Giữ nguyên"),
+    WEBP("webp", "image/webp", "WEBP"),
+    JPEG("jpg", "image/jpeg", "JPG"),
+    PNG("png", "image/png", "PNG")
+}
+
 /**
  * Represents a single sticker in the collection
  */
@@ -17,6 +28,22 @@ data class Sticker(
     val isFavorite: Boolean = false
 ) {
     fun getContentUri() = uri.toUri()
+
+    fun getFileTypeLabel(): String {
+        val extension = listOf(name, uri)
+            .asSequence()
+            .map { it.substringBefore('?').substringBefore('#').substringAfterLast('.', "") }
+            .firstOrNull { it.matches(Regex("[A-Za-z0-9]+")) }
+            ?: mimeType.substringAfter("image/", "")
+
+        return when (extension.lowercase()) {
+            "jpeg", "jpg" -> "JPG"
+            "png" -> "PNG"
+            "webp" -> "WEBP"
+            "gif" -> "GIF"
+            else -> extension.uppercase().take(6)
+        }
+    }
 }
 
 /**
