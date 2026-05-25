@@ -42,6 +42,10 @@ import kotlinx.coroutines.launch
 fun SettingsNavHost(
     onClickBack: () -> Unit,
     startDestination: String? = null,
+    releaseUpdate: GitHubReleaseInfo? = null,
+    onDownloadUpdate: (GitHubReleaseInfo) -> Unit = {},
+    onDismissUpdate: () -> Unit = {},
+    onIgnoreUpdate: (GitHubReleaseInfo) -> Unit = {},
 ) {
     val navController = rememberNavController()
     val dir = if (LocalLayoutDirection.current == LayoutDirection.Ltr) 1 else -1
@@ -77,6 +81,10 @@ fun SettingsNavHost(
                 onClickDictionaries = { navController.navigate(SettingsDestination.Dictionaries) },
                 onClickStickers = { navController.navigate(SettingsDestination.Stickers) },
                 onClickBack = ::goBack,
+                releaseUpdate = releaseUpdate,
+                onDownloadUpdate = onDownloadUpdate,
+                onDismissUpdate = onDismissUpdate,
+                onIgnoreUpdate = onIgnoreUpdate,
             )
         }
         composable(SettingsDestination.About) {

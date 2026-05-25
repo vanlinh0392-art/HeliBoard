@@ -44,7 +44,6 @@ import helium314.keyboard.latin.utils.cleanUnusedMainDicts
 import helium314.keyboard.latin.utils.prefs
 import helium314.keyboard.settings.dialogs.ConfirmationDialog
 import helium314.keyboard.settings.dialogs.NewDictionaryDialog
-import helium314.keyboard.settings.dialogs.ThreeButtonAlertDialog
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.BufferedOutputStream
 import java.io.File
@@ -112,7 +111,19 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
                     else {
                         val startDestination = intent?.getStringExtra(EXTRA_START_DESTINATION)
                         var releaseUpdate by remember { mutableStateOf<GitHubReleaseInfo?>(null) }
-                        SettingsNavHost(onClickBack = { this.finish() }, startDestination = startDestination)
+                        SettingsNavHost(
+                            onClickBack = { this.finish() },
+                            startDestination = startDestination,
+                            releaseUpdate = releaseUpdate,
+                            onDownloadUpdate = { updateInfo ->
+                                startActivity(Intent(Intent.ACTION_VIEW, updateInfo.htmlUrl.toUri()))
+                            },
+                            onDismissUpdate = { releaseUpdate = null },
+                            onIgnoreUpdate = { updateInfo ->
+                                GitHubReleaseChecker.ignoreRelease(this@SettingsActivity, updateInfo.releaseKey)
+                                releaseUpdate = null
+                            },
+                        )
                         LaunchedEffect(startDestination) {
                             releaseUpdate = GitHubReleaseChecker.checkForUpdate(this@SettingsActivity)
                         }
@@ -134,41 +145,6 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
                                 },
                                 content = { Text("Crash report files found") },
                             )
-                        } else {
-                            val updateInfo = releaseUpdate
-                            if (updateInfo != null) {
-                                ThreeButtonAlertDialog(
-                                    onDismissRequest = { releaseUpdate = null },
-                                    onConfirmed = {
-                                        startActivity(Intent(Intent.ACTION_VIEW, updateInfo.htmlUrl.toUri()))
-                                    },
-                                    onNeutral = {
-                                        GitHubReleaseChecker.ignoreRelease(this@SettingsActivity, updateInfo.releaseKey)
-                                        releaseUpdate = null
-                                    },
-                                    title = { Text(stringResource(R.string.update_available_title)) },
-                                    content = {
-                                        val notes = updateInfo.notes.takeIf { it.isNotBlank() }
-                                        Text(
-                                            buildString {
-                                                appendLine(getString(R.string.update_available_message))
-                                                appendLine()
-                                                appendLine(getString(R.string.update_current_version, BuildConfig.VERSION_NAME))
-                                                appendLine(getString(R.string.update_latest_version, updateInfo.versionLabel))
-                                                if (notes != null) {
-                                                    appendLine()
-                                                    appendLine(getString(R.string.update_release_notes))
-                                                    append(notes.take(600))
-                                                }
-                                            }.trim()
-                                        )
-                                    },
-                                    scrollContent = true,
-                                    confirmButtonText = stringResource(R.string.update_download),
-                                    cancelButtonText = stringResource(R.string.update_later),
-                                    neutralButtonText = stringResource(R.string.update_ignore_this_version),
-                                )
-                            }
                         }
                     }
                     if (dictUri != null) {
