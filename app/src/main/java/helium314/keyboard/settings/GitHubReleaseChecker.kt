@@ -20,6 +20,8 @@ data class GitHubReleaseInfo(
     val versionLabel: String,
     val releaseKey: String,
     val htmlUrl: String,
+    val downloadUrl: String,
+    val downloadFileName: String,
     val notes: String,
 )
 
@@ -29,6 +31,13 @@ private data class GitHubReleaseResponse(
     val name: String = "",
     @SerialName("html_url") val htmlUrl: String = "",
     val body: String = "",
+    val assets: List<GitHubReleaseAsset> = emptyList(),
+)
+
+@Serializable
+private data class GitHubReleaseAsset(
+    val name: String = "",
+    @SerialName("browser_download_url") val browserDownloadUrl: String = "",
 )
 
 object GitHubReleaseChecker {
@@ -72,6 +81,8 @@ object GitHubReleaseChecker {
                     versionLabel = release.tagName.ifBlank { release.name },
                     releaseKey = releaseKey,
                     htmlUrl = release.htmlUrl,
+                    downloadUrl = release.apkAsset()?.browserDownloadUrl.orEmpty(),
+                    downloadFileName = release.apkAsset()?.name.orEmpty(),
                     notes = release.body.trim()
                 )
             }
@@ -82,6 +93,13 @@ object GitHubReleaseChecker {
 
     fun ignoreRelease(context: Context, releaseKey: String) {
         context.prefs().edit { putString(PREF_IGNORED_RELEASE_KEY, releaseKey) }
+    }
+
+    private fun GitHubReleaseResponse.apkAsset(): GitHubReleaseAsset? {
+        return assets.firstOrNull { asset ->
+            asset.name.endsWith(".apk", ignoreCase = true) &&
+                asset.browserDownloadUrl.isNotBlank()
+        }
     }
 
     internal fun isNewerThanCurrent(tagName: String, releaseName: String): Boolean {

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package helium314.keyboard.settings
 
+import android.app.DownloadManager
+import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
@@ -50,6 +52,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import android.widget.Toast
 
 // todo: with compose, app startup is slower and UI needs some "warmup" time to be snappy
 //  maybe baseline profiles help?
@@ -116,7 +119,7 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
                             startDestination = startDestination,
                             releaseUpdate = releaseUpdate,
                             onDownloadUpdate = { updateInfo ->
-                                startActivity(Intent(Intent.ACTION_VIEW, updateInfo.htmlUrl.toUri()))
+                                downloadUpdateApk(updateInfo)
                             },
                             onDismissUpdate = { releaseUpdate = null },
                             onIgnoreUpdate = { updateInfo ->
@@ -168,6 +171,34 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
         }
 
         enableEdgeToEdge()
+    }
+
+    private fun downloadUpdateApk(updateInfo: GitHubReleaseInfo) {
+        val downloadUrl = updateInfo.downloadUrl.takeIf { it.isNotBlank() }
+        if (downloadUrl == null) {
+            startActivity(Intent(Intent.ACTION_VIEW, updateInfo.htmlUrl.toUri()))
+            return
+        }
+
+        val fileName = updateInfo.downloadFileName.takeIf { it.isNotBlank() }
+            ?: "HeliBoard_${updateInfo.versionLabel}.apk"
+        val request = DownloadManager.Request(downloadUrl.toUri())
+            .setTitle(fileName)
+            .setDescription("Downloading HeliBoard ${updateInfo.versionLabel}")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName)
+            .setMimeType("application/vnd.android.package-archive")
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(true)
+
+        val downloadManager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+        runCatching {
+            downloadManager.enqueue(request)
+            Toast.makeText(this, "Đang tải APK trong Download Manager", Toast.LENGTH_LONG).show()
+        }.onFailure {
+            Toast.makeText(this, "Không tải được APK, mở GitHub để tải thủ công", Toast.LENGTH_LONG).show()
+            startActivity(Intent(Intent.ACTION_VIEW, updateInfo.htmlUrl.toUri()))
+        }
     }
 
     override fun onStart() {
