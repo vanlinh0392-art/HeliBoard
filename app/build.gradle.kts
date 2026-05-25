@@ -73,8 +73,8 @@ android {
         applicationId = "helium314.keyboard"
         minSdk = 21
         targetSdk = 35
-        versionCode = 3609
-        versionName = "3.6.6"
+        versionCode = 3610
+        versionName = "3.6.7"
         buildConfigField(
             "String",
             "TELEGRAM_BOT_TOKEN",
