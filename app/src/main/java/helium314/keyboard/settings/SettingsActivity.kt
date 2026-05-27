@@ -176,7 +176,7 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
     private fun downloadUpdateApk(updateInfo: GitHubReleaseInfo) {
         val downloadUrl = updateInfo.downloadUrl.takeIf { it.isNotBlank() }
         if (downloadUrl == null) {
-            startActivity(Intent(Intent.ACTION_VIEW, updateInfo.htmlUrl.toUri()))
+            Toast.makeText(this, "Không tìm thấy file APK trong GitHub release", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -196,8 +196,7 @@ open class SettingsActivity : ComponentActivity(), SharedPreferences.OnSharedPre
             downloadManager.enqueue(request)
             Toast.makeText(this, "Đang tải APK trong Download Manager", Toast.LENGTH_LONG).show()
         }.onFailure {
-            Toast.makeText(this, "Không tải được APK, mở GitHub để tải thủ công", Toast.LENGTH_LONG).show()
-            startActivity(Intent(Intent.ACTION_VIEW, updateInfo.htmlUrl.toUri()))
+            Toast.makeText(this, "Không tải được APK bằng Download Manager", Toast.LENGTH_LONG).show()
         }
     }
 
