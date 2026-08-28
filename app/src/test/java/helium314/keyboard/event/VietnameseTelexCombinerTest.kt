@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package helium314.keyboard.event
 
+import helium314.keyboard.keyboard.internal.keyboard_parser.floris.KeyCode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -127,6 +128,8 @@ class VietnameseTelexCombinerTest {
     fun `punctuation and space trigger word boundary commit`() {
         assertEquals("to\u00E0n.", typeSequence("toanf."))
         assertEquals("ch\u00E0o!", typeSequence("chaof!"))
+        assertEquals("l\u1ED7i ", typeSequence("loix "))
+        assertEquals("t\u00F4i l\u00E0 ai ", typeSequence("tooif laf ai "))
     }
 
     private fun typeSequence(raw: String): String {
@@ -137,13 +140,18 @@ class VietnameseTelexCombinerTest {
     private fun typeIntoCombiner(combiner: VietnameseTelexCombiner, raw: String): StringBuilder {
         val committed = StringBuilder()
         raw.forEach { char ->
-            val event = combiner.processEvent(
+            var event: Event? = combiner.processEvent(
                 previousEvents = arrayListOf(),
                 event = Event.createEventForCodePointFromUnknownSource(char.code)
             )
-            val textToCommit = event.textToCommit
-            if (!textToCommit.isNullOrEmpty()) {
-                committed.append(textToCommit)
+            while (event != null) {
+                val textToCommit = event.textToCommit
+                if (!textToCommit.isNullOrEmpty()) {
+                    committed.append(textToCommit)
+                } else if (event.codePoint > 0 && !event.isConsumed && event.keyCode != KeyCode.MULTIPLE_CODE_POINTS) {
+                    committed.append(event.codePoint.toChar())
+                }
+                event = event.nextEvent
             }
         }
         return committed

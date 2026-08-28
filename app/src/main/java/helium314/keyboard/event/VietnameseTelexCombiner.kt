@@ -45,7 +45,7 @@ class VietnameseTelexCombiner : Combiner {
                 val text = textToCommitOnWordBoundary()
                 reset()
                 return if (text.isNotEmpty()) {
-                    Event.createSoftwareTextEvent(text.toString() + codePoint.toChar(), KeyCode.MULTIPLE_CODE_POINTS, event)
+                    Event.createSoftwareTextEvent(text, KeyCode.MULTIPLE_CODE_POINTS, event)
                 } else {
                     event
                 }
@@ -104,9 +104,7 @@ class VietnameseTelexCombiner : Combiner {
             if (codePoint <= 0 || !Character.isLetter(codePoint)) {
                 val text = textToCommitOnWordBoundary()
                 reset()
-                return if (text.isNotEmpty() && codePoint > 0) {
-                    Event.createSoftwareTextEvent(text.toString() + codePoint.toChar(), KeyCode.MULTIPLE_CODE_POINTS, event)
-                } else if (text.isNotEmpty()) {
+                return if (text.isNotEmpty()) {
                     Event.createSoftwareTextEvent(text, KeyCode.MULTIPLE_CODE_POINTS, event)
                 } else {
                     event
