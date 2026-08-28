@@ -838,6 +838,11 @@ public final class InputLogic {
                 // deleting
                 // a word, but the keepCursorPosition applyProcessedEvent seems to help here
                 mWordComposer.applyProcessedEvent(event, true);
+                final CharSequence textToCommit = event.getTextToCommit();
+                if (!TextUtils.isEmpty(textToCommit)) {
+                    mConnection.commitText(textToCommit, 1);
+                    inputTransaction.setDidAffectContents();
+                }
                 break;
             case KeyCode.CLIPBOARD_SELECT_ALL:
                 mConnection.selectAll();
@@ -1195,7 +1200,8 @@ public final class InputLogic {
                 // TODO: Cache the text after the cursor so we don't need to go to the
                 // InputConnection
                 // each time. We are already doing this for getTextBeforeCursor().
-                (!settingsValues.mSpacingAndPunctuations.mCurrentLanguageHasSpaces
+                (!canKeepComposingAcrossCursorMove()
+                        || !settingsValues.mSpacingAndPunctuations.mCurrentLanguageHasSpaces
                         || !mConnection.isCursorTouchingWord(settingsValues.mSpacingAndPunctuations,
                                 !mConnection.hasSlowInputConnection() /* checkTextAfter */)
                         || isCursorAtStartOrAfterSeparator(settingsValues))) {
@@ -2021,8 +2027,9 @@ public final class InputLogic {
             return;
         }
 
-        if (!mConnection.isCursorTouchingWord(settingsValues.mSpacingAndPunctuations, true /* checkTextAfter */)) {
-            // Show predictions.
+        if (!canKeepComposingAcrossCursorMove()
+                || !mConnection.isCursorTouchingWord(settingsValues.mSpacingAndPunctuations, true /* checkTextAfter */)) {
+            // Show predictions without capturing the word into a composing region for Telex
             mWordComposer.setCapitalizedModeAtStartComposingTime(WordComposer.CAPS_MODE_OFF);
             mLatinIME.mHandler.postUpdateSuggestionStrip(SuggestedWords.INPUT_STYLE_RECORRECTION);
             // "unselect" the previous text

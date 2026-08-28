@@ -94,6 +94,41 @@ class VietnameseTelexCombinerTest {
         assertFalse(VietnameseSyllableValidator.couldBeVietnamese("straw"))
     }
 
+    @Test
+    fun `qu and gi words place tone on correct main vowel`() {
+        assertEquals("qu\u00E1", typeSequence("quas"))
+        assertEquals("qu\u00E2n", typeSequence("quaan"))
+        assertEquals("gi\u00FAp", typeSequence("giupj"))
+        assertEquals("gi\u00E0", typeSequence("giaf"))
+        assertEquals("g\u00EC", typeSequence("gif"))
+    }
+
+    @Test
+    fun `new style diphthongs place tone on second vowel`() {
+        assertEquals("h\u00F2a", typeSequence("hoaf"))
+        assertEquals("h\u00F3a", typeSequence("hoas"))
+        assertEquals("th\u1EE7y", typeSequence("thuyr"))
+    }
+
+    @Test
+    fun `uppercase sequences preserve casing with tones and diacritics`() {
+        assertEquals("TO\u00C0N", typeSequence("TOANF"))
+        assertEquals("\u0110\u01AF\u1EDCNG", typeSequence("DUWOFNG"))
+        assertEquals("VI\u1EC6T", typeSequence("VIETJ"))
+    }
+
+    @Test
+    fun `z key removes tone correctly`() {
+        assertEquals("toan", typeSequence("toansz"))
+        assertEquals("hoa", typeSequence("hoafz"))
+    }
+
+    @Test
+    fun `punctuation and space trigger word boundary commit`() {
+        assertEquals("to\u00E0n.", typeSequence("toanf."))
+        assertEquals("ch\u00E0o!", typeSequence("chaof!"))
+    }
+
     private fun typeSequence(raw: String): String {
         val combiner = VietnameseTelexCombiner()
         return typeIntoCombiner(combiner, raw).append(combiner.combiningStateFeedback).toString()

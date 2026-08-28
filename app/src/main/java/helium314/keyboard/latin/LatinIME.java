@@ -2094,37 +2094,9 @@ public class LatinIME extends InputMethodService implements
      * Send a sticker via InputConnection using Commit Content API
      */
     public void sendSticker(helium314.keyboard.sticker.Sticker sticker) {
-        final android.view.inputmethod.InputConnection ic = getCurrentInputConnection();
-        final EditorInfo editorInfo = getCurrentInputEditorInfo();
-        if (ic == null || editorInfo == null) {
-            return;
-        }
-
-        final String[] supportedMimes = androidx.core.view.inputmethod.EditorInfoCompat.getContentMimeTypes(editorInfo);
-        boolean supported = false;
-        for (String mime : supportedMimes) {
-            if (android.content.ClipDescription.compareMimeTypes(sticker.getMimeType(), mime)) {
-                supported = true;
-                break;
-            }
-        }
-        if (!supported) {
-            return;
-        }
-
-        final android.content.ClipDescription description = new android.content.ClipDescription(
-                sticker.getName(), new String[] { sticker.getMimeType() });
-
-        // Parse the URI string to a Uri object
-        final android.net.Uri contentUri = sticker.getContentUri();
-
-        final androidx.core.view.inputmethod.InputContentInfoCompat contentInfo = new androidx.core.view.inputmethod.InputContentInfoCompat(
-                contentUri, description, null);
-
-        androidx.core.view.inputmethod.InputConnectionCompat.commitContent(
-                ic, editorInfo, contentInfo,
-                androidx.core.view.inputmethod.InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION,
-                null);
+        if (sticker == null) return;
+        final helium314.keyboard.sticker.StickerSender sender = new helium314.keyboard.sticker.StickerSender(this);
+        sender.sendSticker(sticker, getCurrentInputConnection(), getCurrentInputEditorInfo());
     }
 
     /**
@@ -2132,9 +2104,7 @@ public class LatinIME extends InputMethodService implements
      */
     public void sendSticker(Object stickerObj) {
         if (stickerObj instanceof helium314.keyboard.sticker.Sticker) {
-            helium314.keyboard.sticker.Sticker sticker = (helium314.keyboard.sticker.Sticker) stickerObj;
-            helium314.keyboard.sticker.StickerSender sender = new helium314.keyboard.sticker.StickerSender(this);
-            sender.sendSticker(sticker, getCurrentInputConnection(), getCurrentInputEditorInfo());
+            sendSticker((helium314.keyboard.sticker.Sticker) stickerObj);
         }
     }
 }
