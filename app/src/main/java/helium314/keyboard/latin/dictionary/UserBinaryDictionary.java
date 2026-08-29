@@ -182,25 +182,25 @@ public class UserBinaryDictionary extends ExpandableBinaryDictionary {
     }
 
     private void addWordsLocked(final Cursor cursor) {
-        final boolean hasShortcutColumn = true;
         if (cursor == null) return;
         if (cursor.moveToFirst()) {
             final int indexWord = cursor.getColumnIndex(Words.WORD);
-            final int indexShortcut = hasShortcutColumn ? cursor.getColumnIndex(Words.SHORTCUT) : 0;
+            final int indexShortcut = cursor.getColumnIndex(Words.SHORTCUT);
             final int indexFrequency = cursor.getColumnIndex(Words.FREQUENCY);
+            if (indexWord < 0) return;
             while (!cursor.isAfterLast()) {
                 final String word = cursor.getString(indexWord);
-                final String shortcut = hasShortcutColumn ? cursor.getString(indexShortcut) : null;
-                final int frequency = cursor.getInt(indexFrequency);
+                final String shortcut = (indexShortcut >= 0 && !cursor.isNull(indexShortcut)) ? cursor.getString(indexShortcut) : null;
+                final int frequency = indexFrequency >= 0 ? cursor.getInt(indexFrequency) : HISTORICAL_DEFAULT_USER_DICTIONARY_FREQUENCY;
                 final int adjustedFrequency = scaleFrequencyFromDefaultToLatinIme(frequency);
-                // Safeguard against adding really long words.
-                if (word.length() <= MAX_WORD_LENGTH) {
+                // Safeguard against adding null or really long words.
+                if (word != null && !word.isEmpty() && word.length() <= MAX_WORD_LENGTH) {
                     runGCIfRequiredLocked(true /* mindsBlockByGC */);
                     addUnigramLocked(word, adjustedFrequency, null /* shortcutTarget */,
                             0 /* shortcutFreq */, false /* isNotAWord */,
                             false /* isPossiblyOffensive */,
                             BinaryDictionary.NOT_A_VALID_TIMESTAMP);
-                    if (null != shortcut && shortcut.length() <= MAX_WORD_LENGTH) {
+                    if (null != shortcut && !shortcut.isEmpty() && shortcut.length() <= MAX_WORD_LENGTH) {
                         runGCIfRequiredLocked(true /* mindsBlockByGC */);
                         addUnigramLocked(shortcut, adjustedFrequency, word,
                                 USER_DICT_SHORTCUT_FREQUENCY, true /* isNotAWord */,

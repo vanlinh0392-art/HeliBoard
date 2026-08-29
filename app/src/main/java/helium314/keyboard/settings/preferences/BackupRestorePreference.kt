@@ -181,23 +181,24 @@ private fun restoreLauncher(onError: (String) -> Unit): ManagedActivityResultLau
                         LayoutUtilsCustom.onLayoutFileChanged()
                         Settings.getInstance().stopListener()
                         while (entry != null) {
-                            if (entry.name.startsWith("unprotected${File.separator}")) {
-                                val adjustedName = entry.name.substringAfter("unprotected${File.separator}")
+                            val entryName = entry.name
+                            if (entryName.startsWith("unprotected/") || entryName.startsWith("unprotected\\") || entryName.startsWith("unprotected${File.separator}")) {
+                                val adjustedName = entryName.substringAfter("unprotected/").substringAfter("unprotected\\").substringAfter("unprotected${File.separator}")
                                 if (backupFilePatterns.any { adjustedName.matches(it) }) {
                                     val file = File(deviceProtectedFilesDir, adjustedName)
                                     FileUtils.copyStreamToNewFile(zip, file)
                                 }
-                            } else if (backupFilePatterns.any { entry.name.matches(it) }) {
-                                val file = File(filesDir, entry.name)
+                            } else if (backupFilePatterns.any { entryName.matches(it) }) {
+                                val file = File(filesDir, entryName)
                                 FileUtils.copyStreamToNewFile(zip, file)
-                            } else if (entry.name == Database.NAME) {
+                            } else if (entryName == Database.NAME) {
                                 FileUtils.copyStreamToNewFile(zip, restoredDb)
-                            } else if (entry.name == PREFS_FILE_NAME) {
+                            } else if (entryName == PREFS_FILE_NAME) {
                                 val prefLines = String(zip.readBytes()).split("\n")
                                 val prefs = ctx.prefs()
                                 prefs.edit { clear() }
                                 readJsonLinesToSettings(prefLines, prefs)
-                            } else if (entry.name == PROTECTED_PREFS_FILE_NAME) {
+                            } else if (entryName == PROTECTED_PREFS_FILE_NAME) {
                                 val prefLines = String(zip.readBytes()).split("\n")
                                 val protectedPrefs = ctx.protectedPrefs()
                                 protectedPrefs.edit { clear() }
@@ -210,8 +211,9 @@ private fun restoreLauncher(onError: (String) -> Unit): ManagedActivityResultLau
                 }
 
                 Database.copyFromDb(restoredDb, ctx)
-                Looper.prepare()
-                Toast.makeText(ctx, ctx.getString(R.string.backup_restored), Toast.LENGTH_LONG).show()
+                android.os.Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(ctx, ctx.getString(R.string.backup_restored), Toast.LENGTH_LONG).show()
+                }
             } catch (t: Throwable) {
                 onError("r" + t.message)
                 Log.w("AdvancedScreen", "error during restore", t)

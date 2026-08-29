@@ -43,6 +43,7 @@ import helium314.keyboard.settings.DropDownField
 import helium314.keyboard.settings.SearchScreen
 import helium314.keyboard.settings.dialogs.ConfirmationDialog
 import helium314.keyboard.settings.dialogs.ThreeButtonAlertDialog
+import java.text.Normalizer
 import java.util.Locale
 
 @Composable
@@ -104,9 +105,13 @@ fun PersonalDictionaryScreen(
             }
         ),
         filteredItems = { term ->
-            // we could maybe to this using a query and getting items by position
-            // requires adjusting the SearchScreen, likely not worth the effort
-            words.filter { it.word.startsWith(term, true) || it.shortcut?.startsWith(term, true) == true }
+            val cleanTerm = Normalizer.normalize(term.trim(), Normalizer.Form.NFC)
+            if (cleanTerm.isEmpty()) words
+            else words.filter {
+                val cleanWord = Normalizer.normalize(it.word, Normalizer.Form.NFC)
+                val cleanShortcut = it.shortcut?.let { s -> Normalizer.normalize(s, Normalizer.Form.NFC) }
+                cleanWord.contains(cleanTerm, ignoreCase = true) || cleanShortcut?.contains(cleanTerm, ignoreCase = true) == true
+            }
         },
         itemContent = {
             Row(
@@ -142,7 +147,12 @@ fun PersonalDictionaryScreen(
         )
     }
     if (selectedWord != null) {
-        EditWordDialog(selectedWord!!, locale) { selectedWord = null }
+        EditWordDialog(
+            word = selectedWord!!,
+            locale = locale,
+            onWordChanged = { refreshTrigger++ },
+            onDismissRequest = { selectedWord = null }
+        )
     }
     ExtendedFloatingActionButton(
         onClick = { selectedWord = Word("", null, null) },
@@ -154,17 +164,29 @@ fun PersonalDictionaryScreen(
 }
 
 @Composable
-private fun EditWordDialog(word: Word, locale: Locale?, onDismissRequest: () -> Unit) {
+private fun EditWordDialog(
+    word: Word,
+    locale: Locale?,
+    onWordChanged: () -> Unit,
+    onDismissRequest: () -> Unit
+) {
     val ctx = LocalContext.current
     val focusRequester = remember { FocusRequester() }
     var newWord by remember { mutableStateOf(word) }
     var newLocale by remember { mutableStateOf(locale) }
     val wordValid = (newWord.word == word.word && locale == newLocale) || !doesWordExist(newWord.word, newLocale, ctx)
     fun save() {
-        if (newWord != word || locale != newLocale) {
+        val cleanWord = Normalizer.normalize(newWord.word.trim(), Normalizer.Form.NFC)
+        val cleanShortcut = newWord.shortcut?.trim()?.takeIf { it.isNotEmpty() }?.let { Normalizer.normalize(it, Normalizer.Form.NFC) }
+        if (cleanWord.isEmpty()) return
+        val wordToSave = newWord.copy(word = cleanWord, shortcut = cleanShortcut)
+        if (wordToSave != word || locale != newLocale) {
             deleteWord(word, locale, ctx.contentResolver)
-            val saveWeight = newWord.weight ?: WEIGHT_FOR_USER_DICTIONARY_ADDS
-            UserDictionary.Words.addWord(ctx, newWord.word, saveWeight, newWord.shortcut, newLocale)
+            val saveWeight = wordToSave.weight ?: WEIGHT_FOR_USER_DICTIONARY_ADDS
+            runCatching {
+                UserDictionary.Words.addWord(ctx, wordToSave.word, saveWeight, wordToSave.shortcut, newLocale)
+            }
+            onWordChanged()
         }
     }
     ThreeButtonAlertDialog(
@@ -175,6 +197,7 @@ private fun EditWordDialog(word: Word, locale: Locale?, onDismissRequest: () -> 
         neutralButtonText = stringResource(R.string.delete),
         onNeutral = {
             deleteWord(word, locale, ctx.contentResolver) // delete the originally selected word
+            onWordChanged()
             onDismissRequest()
         },
         title = {
@@ -241,123 +264,152 @@ private fun EditWordDialog(word: Word, locale: Locale?, onDismissRequest: () -> 
     )
 }
 
-private fun deleteWord(wordDetails: Word, locale: Locale?, resolver: ContentResolver) {
-    val (word, shortcut, weightInt) = wordDetails
-    val weight = weightInt.toString()
-    if (shortcut.isNullOrBlank()) {
-        if (locale == null) {
-            resolver.delete(
-                UserDictionary.Words.CONTENT_URI, DELETE_SELECTION_WITHOUT_SHORTCUT_AND_WITH_ALL_LOCALES,
-                arrayOf(word, weight)
-            )
+private fun deleteWord(wordDetails: Word, locale: Locale?, resolver: ContentResolver): Int {
+    return runCatching {
+        val (word, shortcut, weightInt) = wordDetails
+        val cleanWord = Normalizer.normalize(word.trim(), Normalizer.Form.NFC)
+        if (cleanWord.isEmpty()) return@runCatching 0
+        val cleanShortcut = shortcut?.trim()?.takeIf { it.isNotEmpty() }?.let { Normalizer.normalize(it, Normalizer.Form.NFC) }
+        val weight = weightInt?.toString() ?: WEIGHT_FOR_USER_DICTIONARY_ADDS.toString()
+        if (cleanShortcut.isNullOrBlank()) {
+            if (locale == null) {
+                resolver.delete(
+                    UserDictionary.Words.CONTENT_URI,
+                    DELETE_SELECTION_WITHOUT_SHORTCUT_AND_WITH_ALL_LOCALES,
+                    arrayOf(cleanWord, weight)
+                )
+            } else {
+                resolver.delete( // requires use of locale string for interaction with Android system
+                    UserDictionary.Words.CONTENT_URI,
+                    DELETE_SELECTION_WITHOUT_SHORTCUT_AND_WITH_LOCALE,
+                    arrayOf(cleanWord, weight, locale.toString())
+                )
+            }
         } else {
-            resolver.delete( // requires use of locale string for interaction with Android system
-                UserDictionary.Words.CONTENT_URI, DELETE_SELECTION_WITHOUT_SHORTCUT_AND_WITH_LOCALE,
-                arrayOf(word, weight, locale.toString())
-            )
+            if (locale == null) {
+                resolver.delete(
+                    UserDictionary.Words.CONTENT_URI,
+                    DELETE_SELECTION_WITH_SHORTCUT_AND_WITH_ALL_LOCALES,
+                    arrayOf(cleanWord, cleanShortcut, weight)
+                )
+            } else {
+                resolver.delete( // requires use of locale string for interaction with Android system
+                    UserDictionary.Words.CONTENT_URI,
+                    DELETE_SELECTION_WITH_SHORTCUT_AND_WITH_LOCALE,
+                    arrayOf(cleanWord, cleanShortcut, weight, locale.toString())
+                )
+            }
         }
-    } else {
-        if (locale == null) {
-            resolver.delete(
-                UserDictionary.Words.CONTENT_URI, DELETE_SELECTION_WITH_SHORTCUT_AND_WITH_ALL_LOCALES,
-                arrayOf(word, shortcut, weight)
-            )
-        } else {
-            resolver.delete( // requires use of locale string for interaction with Android system
-                UserDictionary.Words.CONTENT_URI, DELETE_SELECTION_WITH_SHORTCUT_AND_WITH_LOCALE,
-                arrayOf(word, shortcut, weight, locale.toString())
-            )
-        }
-    }
+    }.getOrDefault(0)
 }
 
 private fun deleteAllShortcuts(words: List<Word>, locale: Locale?, resolver: ContentResolver): Int {
     val shortcuts = words.filter { !it.shortcut.isNullOrBlank() }
-    shortcuts.forEach { deleteWord(it, locale, resolver) }
-    return shortcuts.size
+    var deleted = 0
+    shortcuts.forEach {
+        if (deleteWord(it, locale, resolver) > 0) {
+            deleted++
+        }
+    }
+    return deleted
 }
 
 private fun doesWordExist(word: String, locale: Locale?, context: Context): Boolean {
-    val hasWordProjection = arrayOf(UserDictionary.Words.WORD, UserDictionary.Words.LOCALE)
-
-    val select: String
-    val selectArgs: Array<String>?
-    if (locale == null) {
-        select = "${UserDictionary.Words.WORD}=? AND ${UserDictionary.Words.LOCALE} is null"
-        selectArgs = arrayOf(word)
-    } else {
-        select = "${UserDictionary.Words.WORD}=? AND ${UserDictionary.Words.LOCALE}=?"
-        // requires use of locale string (as opposed to more useful language tag) for interaction with Android system
-        selectArgs = arrayOf(word, locale.toString())
-    }
-    val cursor = context.contentResolver.query(UserDictionary.Words.CONTENT_URI, hasWordProjection, select, selectArgs, null)
-    cursor.use {
-        if (null == it) return false
-        return it.count > 0
-    }
+    val cleanWord = Normalizer.normalize(word.trim(), Normalizer.Form.NFC)
+    if (cleanWord.isEmpty()) return false
+    return runCatching {
+        val hasWordProjection = arrayOf(UserDictionary.Words.WORD, UserDictionary.Words.LOCALE)
+        val select: String
+        val selectArgs: Array<String>?
+        if (locale == null) {
+            select = "${UserDictionary.Words.WORD}=? AND ${UserDictionary.Words.LOCALE} is null"
+            selectArgs = arrayOf(cleanWord)
+        } else {
+            select = "${UserDictionary.Words.WORD}=? AND ${UserDictionary.Words.LOCALE}=?"
+            selectArgs = arrayOf(cleanWord, locale.toString())
+        }
+        val cursor = context.contentResolver.query(UserDictionary.Words.CONTENT_URI, hasWordProjection, select, selectArgs, null)
+        cursor?.use { it.count > 0 } ?: false
+    }.getOrDefault(false)
 }
 
 private fun exportWords(uri: Uri, words: List<Word>, locale: Locale?, context: Context): Int {
-    val shortcuts = words.filter { !it.shortcut.isNullOrBlank() }
-    context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { writer ->
-        writer.appendLine("shortcut,word,locale,weight")
-        shortcuts.forEach { word ->
-            writer.appendLine(
-                listOf(
-                    word.shortcut.orEmpty(),
-                    word.word,
-                    locale?.toString().orEmpty(),
-                    (word.weight ?: WEIGHT_FOR_USER_DICTIONARY_ADDS).toString()
-                ).joinToString(",") { it.toCsvField() }
-            )
+    var count = 0
+    runCatching {
+        context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { writer ->
+            writer.appendLine("shortcut,word,locale,weight")
+            words.forEach { word ->
+                writer.appendLine(
+                    listOf(
+                        word.shortcut.orEmpty(),
+                        word.word,
+                        locale?.toString().orEmpty(),
+                        (word.weight ?: WEIGHT_FOR_USER_DICTIONARY_ADDS).toString()
+                    ).joinToString(",") { it.toCsvField() }
+                )
+                count++
+            }
         }
     }
-    return shortcuts.size
+    return count
 }
 
 private fun importWords(uri: Uri, fallbackLocale: Locale?, context: Context): ImportResult {
     var imported = 0
     var skippedDuplicates = 0
     val importedShortcuts = mutableSetOf<String>()
-    context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.useLines { lines ->
-        lines.drop(1).forEach { line ->
-            val fields = parseCsvLine(line)
-            if (fields.size < 2) return@forEach
-            val shortcut = fields[0].trim().takeIf { it.isNotEmpty() } ?: return@forEach
-            val word = fields[1].trim().takeIf { it.isNotEmpty() } ?: return@forEach
-            val importedLocale = fields.getOrNull(2)?.trim()?.takeIf { it.isNotEmpty() }?.let { Locale.forLanguageTag(it.replace('_', '-')) }
-            val weight = fields.getOrNull(3)?.trim()?.toIntOrNull()?.coerceIn(0, 255) ?: WEIGHT_FOR_USER_DICTIONARY_ADDS
-            val locale = importedLocale ?: fallbackLocale
-            val shortcutKey = "${locale?.toString().orEmpty()}\u0000${shortcut.lowercase(Locale.ROOT)}"
-            if (!importedShortcuts.add(shortcutKey) || doesShortcutExist(shortcut, locale, context)) {
-                skippedDuplicates++
-                return@forEach
+    runCatching {
+        context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.useLines { lines ->
+            lines.drop(1).forEach { line ->
+                val fields = parseCsvLine(line)
+                if (fields.size < 2) return@forEach
+                val shortcut = fields[0].trim().takeIf { it.isNotEmpty() }?.let { Normalizer.normalize(it, Normalizer.Form.NFC) }
+                val word = Normalizer.normalize(fields[1].trim(), Normalizer.Form.NFC).takeIf { it.isNotEmpty() } ?: return@forEach
+                val importedLocale = fields.getOrNull(2)?.trim()?.takeIf { it.isNotEmpty() }?.let { Locale.forLanguageTag(it.replace('_', '-')) }
+                val weight = fields.getOrNull(3)?.trim()?.toIntOrNull()?.coerceIn(0, 255) ?: WEIGHT_FOR_USER_DICTIONARY_ADDS
+                val locale = importedLocale ?: fallbackLocale
+                if (!shortcut.isNullOrBlank()) {
+                    val shortcutKey = "${locale?.toString().orEmpty()}\u0000${shortcut.lowercase(Locale.ROOT)}"
+                    if (!importedShortcuts.add(shortcutKey) || doesShortcutExist(shortcut, locale, context)) {
+                        skippedDuplicates++
+                        return@forEach
+                    }
+                } else if (doesWordExist(word, locale, context)) {
+                    skippedDuplicates++
+                    return@forEach
+                }
+                runCatching {
+                    UserDictionary.Words.addWord(context, word, weight, shortcut, locale)
+                    imported++
+                }
             }
-            UserDictionary.Words.addWord(context, word, weight, shortcut, locale)
-            imported++
         }
     }
     return ImportResult(imported, skippedDuplicates)
 }
 
 private fun doesShortcutExist(shortcut: String, locale: Locale?, context: Context): Boolean {
-    val projection = arrayOf(UserDictionary.Words.SHORTCUT)
-    val selection: String
-    val selectionArgs: Array<String>?
-    if (locale == null) {
-        selection = "UPPER(${UserDictionary.Words.SHORTCUT})=UPPER(?) AND ${UserDictionary.Words.LOCALE} is null"
-        selectionArgs = arrayOf(shortcut)
-    } else {
-        selection = "UPPER(${UserDictionary.Words.SHORTCUT})=UPPER(?) AND ${UserDictionary.Words.LOCALE}=?"
-        selectionArgs = arrayOf(shortcut, locale.toString())
-    }
-    return context.contentResolver.query(
-        UserDictionary.Words.CONTENT_URI,
-        projection,
-        selection,
-        selectionArgs,
-        null
-    ).use { cursor -> (cursor?.count ?: 0) > 0 }
+    val cleanShortcut = Normalizer.normalize(shortcut.trim(), Normalizer.Form.NFC)
+    if (cleanShortcut.isEmpty()) return false
+    return runCatching {
+        val projection = arrayOf(UserDictionary.Words.SHORTCUT)
+        val selection: String
+        val selectionArgs: Array<String>?
+        if (locale == null) {
+            selection = "UPPER(${UserDictionary.Words.SHORTCUT})=UPPER(?) AND ${UserDictionary.Words.LOCALE} is null"
+            selectionArgs = arrayOf(cleanShortcut)
+        } else {
+            selection = "UPPER(${UserDictionary.Words.SHORTCUT})=UPPER(?) AND ${UserDictionary.Words.LOCALE}=?"
+            selectionArgs = arrayOf(cleanShortcut, locale.toString())
+        }
+        context.contentResolver.query(
+            UserDictionary.Words.CONTENT_URI,
+            projection,
+            selection,
+            selectionArgs,
+            null
+        )?.use { cursor -> cursor.count > 0 } ?: false
+    }.getOrDefault(false)
 }
 
 private data class ImportResult(val imported: Int, val skippedDuplicates: Int)
@@ -415,44 +467,45 @@ private data class Word(val word: String, val shortcut: String?, val weight: Int
 
 // getting all words instead of reading directly cursor, because filteredItems expects a list
 private fun getAll(locale: Locale?, context: Context): List<Word> {
-    val cursor = createCursor(locale, context) ?: return emptyList()
-
-    if (!cursor.moveToFirst()) return emptyList()
-    val result = mutableListOf<Word>()
-    val wordIndex = cursor.getColumnIndexOrThrow(UserDictionary.Words.WORD)
-    val shortcutIndex = cursor.getColumnIndexOrThrow(UserDictionary.Words.SHORTCUT)
-    val frequencyIndex = cursor.getColumnIndexOrThrow(UserDictionary.Words.FREQUENCY)
-    while (!cursor.isAfterLast) {
-        result.add(Word(cursor.getString(wordIndex), cursor.getString(shortcutIndex), cursor.getInt(frequencyIndex)))
-        cursor.moveToNext()
-    }
-    cursor.close()
-    return result
+    return runCatching {
+        val cursor = createCursor(locale, context) ?: return@runCatching emptyList<Word>()
+        cursor.use { c ->
+            if (!c.moveToFirst()) return@runCatching emptyList<Word>()
+            val result = mutableListOf<Word>()
+            val wordIndex = c.getColumnIndex(UserDictionary.Words.WORD)
+            val shortcutIndex = c.getColumnIndex(UserDictionary.Words.SHORTCUT)
+            val frequencyIndex = c.getColumnIndex(UserDictionary.Words.FREQUENCY)
+            if (wordIndex < 0) return@runCatching emptyList<Word>()
+            while (!c.isAfterLast) {
+                val word = c.getString(wordIndex)
+                val shortcut = if (shortcutIndex >= 0 && !c.isNull(shortcutIndex)) c.getString(shortcutIndex) else null
+                val freq = if (frequencyIndex >= 0 && !c.isNull(frequencyIndex)) c.getInt(frequencyIndex) else null
+                if (!word.isNullOrBlank()) {
+                    result.add(Word(word, shortcut, freq))
+                }
+                c.moveToNext()
+            }
+            result
+        }
+    }.getOrDefault(emptyList())
 }
 
 private fun createCursor(locale: Locale?, context: Context): Cursor? {
-    // locale can be any of:
-    // - An actual locale, for use of Locale#toString()
-    // - The emptyLocale. This means we want a cursor returning words valid for all locales.
+    return runCatching {
+        val select: String
+        val selectArgs: Array<String>?
+        if (locale == null) {
+            select = QUERY_SELECTION_ALL_LOCALES
+            selectArgs = null
+        } else {
+            select = QUERY_SELECTION
+            selectArgs = arrayOf(locale.toString())
+        }
 
-    // Note that this contrasts with the data inside the database, where NULL means "all
-    // locales" and there should never be an empty string.
-    // The confusion is called by the historical use of null for "all locales".
-
-    val select: String
-    val selectArgs: Array<String>?
-    if (locale == null) {
-        select = QUERY_SELECTION_ALL_LOCALES
-        selectArgs = null
-    } else {
-        select = QUERY_SELECTION
-        // requires use of locale string (as opposed to more useful language tag) for interaction with Android system
-        selectArgs = arrayOf(locale.toString())
-    }
-
-    return context.contentResolver.query(
-        UserDictionary.Words.CONTENT_URI, QUERY_PROJECTION, select, selectArgs, SORT_ORDER
-    )
+        context.contentResolver.query(
+            UserDictionary.Words.CONTENT_URI, QUERY_PROJECTION, select, selectArgs, SORT_ORDER
+        )
+    }.getOrNull()
 }
 
 private val QUERY_PROJECTION =
@@ -465,32 +518,16 @@ private const val SORT_ORDER = "UPPER(" + UserDictionary.Words.WORD + ")"
 private const val QUERY_SELECTION = UserDictionary.Words.LOCALE + "=?"
 private const val QUERY_SELECTION_ALL_LOCALES = UserDictionary.Words.LOCALE + " is null"
 
-private const val DELETE_SELECTION_WITH_SHORTCUT_AND_WITH_LOCALE = (UserDictionary.Words.WORD + "=? AND "
-        + UserDictionary.Words.SHORTCUT + "=? AND "
-        + UserDictionary.Words.FREQUENCY + "=? AND "
-        + UserDictionary.Words.LOCALE + "=?")
+private const val DELETE_SELECTION_WITH_SHORTCUT_AND_WITH_LOCALE =
+    "${UserDictionary.Words.WORD}=? AND ${UserDictionary.Words.SHORTCUT}=? AND ${UserDictionary.Words.FREQUENCY}=? AND ${UserDictionary.Words.LOCALE}=?"
 
-private const val DELETE_SELECTION_WITH_SHORTCUT_AND_WITH_ALL_LOCALES = (UserDictionary.Words.WORD + "=? AND "
-        + UserDictionary.Words.SHORTCUT + "=? AND "
-        + UserDictionary.Words.FREQUENCY + "=? AND "
-        + UserDictionary.Words.LOCALE + " is null")
+private const val DELETE_SELECTION_WITH_SHORTCUT_AND_WITH_ALL_LOCALES =
+    "${UserDictionary.Words.WORD}=? AND ${UserDictionary.Words.SHORTCUT}=? AND ${UserDictionary.Words.FREQUENCY}=? AND ${UserDictionary.Words.LOCALE} is null"
 
-private const val DELETE_SELECTION_WITHOUT_SHORTCUT_AND_WITH_LOCALE = (UserDictionary.Words.WORD + "=? AND "
-        + UserDictionary.Words.SHORTCUT + " is null AND "
-        + UserDictionary.Words.FREQUENCY + "=? AND "
-        + UserDictionary.Words.LOCALE + "=? OR "
+private const val DELETE_SELECTION_WITHOUT_SHORTCUT_AND_WITH_LOCALE =
+    "${UserDictionary.Words.WORD}=? AND (${UserDictionary.Words.SHORTCUT} is null OR ${UserDictionary.Words.SHORTCUT}='') AND ${UserDictionary.Words.FREQUENCY}=? AND ${UserDictionary.Words.LOCALE}=?"
 
-        + UserDictionary.Words.SHORTCUT + "='' AND "
-        + UserDictionary.Words.FREQUENCY + "=? AND "
-        + UserDictionary.Words.LOCALE + "=?")
-
-private const val DELETE_SELECTION_WITHOUT_SHORTCUT_AND_WITH_ALL_LOCALES = (UserDictionary.Words.WORD + "=? AND "
-        + UserDictionary.Words.SHORTCUT + " is null AND "
-        + UserDictionary.Words.FREQUENCY + "=? AND "
-        + UserDictionary.Words.LOCALE + " is null OR "
-
-        + UserDictionary.Words.SHORTCUT + "='' AND "
-        + UserDictionary.Words.FREQUENCY + "=? AND "
-        + UserDictionary.Words.LOCALE + " is null")
+private const val DELETE_SELECTION_WITHOUT_SHORTCUT_AND_WITH_ALL_LOCALES =
+    "${UserDictionary.Words.WORD}=? AND (${UserDictionary.Words.SHORTCUT} is null OR ${UserDictionary.Words.SHORTCUT}='') AND ${UserDictionary.Words.FREQUENCY}=? AND ${UserDictionary.Words.LOCALE} is null"
 
 private const val WEIGHT_FOR_USER_DICTIONARY_ADDS = 250
